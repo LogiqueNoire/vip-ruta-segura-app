@@ -1,0 +1,65 @@
+VIP RUTA SEGURA · PROMPTS PARA LOVABLE (V3)
+==========================================
+
+El proyecto "VIP Ruta Segura" ya está creado en tu cuenta de Lovable. Mándale el mensaje de abajo apenas tengas créditos: corrige los errores y pone el nuevo inicio.
+Los prompts 2, 3 y 4 sirven si algún día armas la app desde cero en otro proyecto. Pégalos de uno en uno y espera a que Lovable termine cada parte.
+Si Lovable te pregunta por la base de datos, acepta conectar Supabase (o Lovable Cloud): es lo que vuelve "automático" el GPS, los asientos y las calificaciones.
+
+
+MENSAJE PARA EL PROYECTO QUE YA EXISTE EN LOVABLE (mandar apenas haya créditos)
+---------------------------------------------------------------------------------
+Primero corrige todos los errores de compilación para que la app abra (imports, exports, componentes que falten). Carga Archivo, Figtree e IBM Plex Mono de Google Fonts y enlaza el manifest con el logo SVG como ícono.
+
+Luego cambia SOLO el inicio de la app. La landing larga ya no se muestra al abrir: queda solo como "¿Qué es VIP Ruta Segura?" desde la bienvenida y desde el Perfil. El resto de pantallas se queda igual.
+
+Nuevo inicio, una sola acción por pantalla y cada botón dice a dónde lleva:
+1. Splash 1,5 s con el logo.
+2. Presentación de 3 pantallas (se pasan con el botón o deslizando, con puntos de avance y "Saltar" arriba a la derecha). Cada una tiene un ícono grande dentro de un cuadrado dorado, un título corto y una sola línea:
+   - "Sabes quién te lleva" / "Conductores con DNI, licencia y antecedentes revisados."
+   - "Tu asiento, asegurado" / "Lo eliges en el mapa y pagas con Yape, Plin o Visa."
+   - "Tu familia te sigue" / "GPS en vivo, compartes tu ubicación y tienes botón SOS."
+   Botón dorado "Siguiente ›" y en la última "Empezar ›". Solo se ve la primera vez.
+3. Bienvenida "¿Qué quieres hacer?" con dos botones grandes: dorado "Quiero viajar · Reservo mi asiento ›" y negro "Quiero manejar · Publico mis viajes ›". Si ya hay cuenta en el celular, un tercero "Seguir como [nombre] ›". Abajo "¿Ya tienes cuenta? Ingresar".
+4. Registro en 3 pasos con barra de progreso y "Paso N de 3", un dato por pantalla, campo grande y botón fijo abajo:
+   - Paso 1 "¿Cómo te llamas?" → botón "Siguiente: tu celular ›".
+   - Paso 2 "¿Cuál es tu celular?" → botón "Enviarme el código ›"; luego "Escribe el código" (4 dígitos, en la demo se muestra en un aviso) → botón "Verificar y seguir ›". El celular queda verificado.
+   - Paso 3 "Crea tu contraseña" con "Mostrar contraseña" y "Recordar mi cuenta en este celular" → botón "Crear mi cuenta ›".
+   La flecha Atrás regresa al paso anterior. Enlace "Usar una cuenta de ejemplo" en el paso 1.
+5. Pantalla "Listo, [nombre]." con un check verde grande. Pasajero: botón "Buscar mi viaje ›". Conductor: "Subir mis documentos ›" y "Ver mi panel primero".
+6. Ingresar: celular y contraseña, botón "Ingresar ›".
+Cambia también estos textos de botones: "Buscar viajes" → "Ver horarios disponibles"; "Continuar" en asientos → "Ir a pagar ›"; "Pagar con Yape" → "Pagar S/ XX con Yape".
+
+Cambios de precios y del conductor (incluir en el mismo mensaje):
+- Precios aproximados por vehículo: Auto S/ 60, Camioneta S/ 50, Minivan S/ 40. Cada conductor pone el suyo cerca de ese valor (ej. Corolla S/ 60, Kia Rio S/ 58, Fortuner S/ 52, Santa Fe S/ 50, H-1 S/ 40, Carnival S/ 42). En la landing dice "aprox." en vez de "desde". Al publicar un viaje, el precio sugerido es el de su vehículo (rango S/ 20–120).
+- Espera de 20 minutos (no 15): el conductor espera 20 min después de la hora de salida. Pasado ese tiempo, los pasajeros que no marcaron "Abordó" pierden el asiento AUTOMÁTICAMENTE, el asiento se libera y el pasajero ve "Asiento perdido" en Mis viajes. Ya no hay botón manual "No presentado"; cada pasajero pendiente muestra "Si no llega en X min, pierde el asiento".
+- Panel "Venta de pasajes en vivo" para el conductor (en su Panel y en Pasajeros): número grande "5 de 8 pasajes vendidos", lo recaudado, cuadritos por asiento (libre punteado, vendido dorado, a bordo verde), y la lista de últimas compras en tiempo real ("Vendido asiento 4 · Karla V. · Yape · ahora"; "Asiento 5 liberado · no llegó en 20 min"). Un aviso le dice si ya es momento de partir: "Aún se venden pasajes" / "Vehículo lleno" / "Esperando pasajeros: si no llegan en mm:ss pierden su asiento" / "Todos a bordo: puedes partir" o "Ya puedes partir", con botón verde "Iniciar viaje ahora". Cada compra nueva muestra un aviso "Nueva compra: asiento N · Yape. Quedan X". Con base de datos, usa Supabase Realtime en la tabla de reservas para que las compras lleguen al instante.
+
+
+PROMPT 2 · Pasajero: búsqueda, asientos, pago y boleto
+------------------------------------------------------
+Crea las tablas: profiles (rol, nombre, celular, dni, verificaciones), vehicles, trips, bookings, seats, reviews, live_locations.
+Inicio del pasajero: origen/destino con botón para invertir, fecha (Hoy, Mañana, Pasado mañana y calendario), tipo de vehículo (Todos, Auto, Camioneta, Minivan), número de pasajeros y botón "Buscar viajes".
+Resultados: tarjeta por salida con hora de salida y llegada (+3 h 20 min), imagen del vehículo, modelo y placa, foto circular del conductor con insignia verde "Verificado" y su calificación, asientos libres "3 de 8" y precio. Las salidas que ya pasaron o están llenas se ven desactivadas.
+Detalle del viaje: sección "Conoce tu vehículo" con pestañas Exterior / Interior / Maletera (fotos que sube el conductor), perfil del conductor con DNI validado, licencia, SOAT y antecedentes, recorrido de oficina a oficina, regla de espera de 20 minutos y reseñas.
+Asientos: mapa de la cabina según el vehículo (auto 4, camioneta 6, minivan 8) con colores: libre (borde verde), elegido (dorado), ocupado (gris, no se puede tocar), tuyo (azul). Al tocar un asiento muestra "Asiento N reservado. Quedan X asientos". Si está ocupado: "Este asiento ya fue reservado. Elige otro". El asiento queda retenido 10 minutos con contador. "Continuar" solo se activa con un asiento elegido. Usa Supabase Realtime para que, si otra persona reserva, el asiento cambie a gris al instante y nunca se pueda reservar dos veces.
+Promociones automáticas (se aplica la mayor): reserva con 2+ días de anticipación −10 %, horario valle 10:00–15:00 −10 %, fechas especiales (Fiestas Patrias, Día de la Canción Criolla, Navidad, Año Nuevo) −10 %, vehículo completo −15 %.
+Pago: resumen con descuento y total; métodos Yape (celular + código de aprobación de 6 dígitos), Plin (QR) y Visa. Por ahora déjalo SIMULADO y con el aviso "Prototipo: no se cobra dinero". Solo deja pagar si el pasajero verificó celular y DNI.
+Boleto: ciudades, hora, asiento, vehículo, placa, conductor verificado, oficina de embarque, código VIP-XXXX y QR.
+
+
+PROMPT 3 · Seguridad: verificación, GPS en vivo, compartir y SOS
+----------------------------------------------------------------
+Verificación del pasajero (pantalla aparte, no bloquea el registro): celular con código SMS, DNI de 8 dígitos, selfie con la cámara y contacto de emergencia. Al completarla muestra la insignia "Pasajero confiable".
+Verificación del conductor: celular, DNI, licencia (una letra + 8 dígitos, categoría A-IIa o superior), vehículo (tipo, modelo, placa ABC-123, foto exterior e interior), SOAT vigente y revisión técnica, certificado de antecedentes. Estado "En revisión" hasta que un administrador lo apruebe; sin aprobación no puede publicar viajes.
+GPS en vivo: cuando el conductor toca "Iniciar viaje", la app lee su ubicación con navigator.geolocation.watchPosition cada 10 segundos y la guarda en live_locations. La pantalla "En vivo" del pasajero se suscribe con Supabase Realtime y mueve el marcador del vehículo sobre un mapa (Leaflet + OpenStreetMap) con la ruta Trujillo – Chiclayo por la Panamericana Norte. Muestra velocidad, km que faltan, tiempo restante y el próximo pueblo (Chocope, Paiján, San Pedro de Lloc, Ciudad de Dios, Chepén, Mocupe, Reque).
+Compartir ubicación: botón que arma el mensaje "Estoy viajando con VIP Ruta Segura… placa, conductor, mi ubicación: enlace de Google Maps" y lo abre en WhatsApp (https://wa.me/51NUMERO?text=...) para el contacto de emergencia; también botón Copiar.
+SOS: hoja roja con "Alertar por WhatsApp" (mismo mensaje con ALERTA), "Avisar a la central VIP" (guarda un incidente) y los números 105 Policía, 116 Bomberos, 106 SAMU.
+
+
+PROMPT 4 · Conductor y calificaciones
+-------------------------------------
+Panel del conductor: nombre, insignia, pasajeros e ingreso del día, calificación, próxima salida con cuenta regresiva y botones "Pasajeros" e "Iniciar viaje". Botón "Publicar un viaje": sentido, fecha, hora, precio por asiento y asientos que ofrece; al publicar aparece al instante en las búsquedas.
+Lista de pasajeros (manifiesto): foto, nombre, asiento, insignias (celular, DNI, selfie), calificación del pasajero, método de pago "Pagado" y maletas. Botones "Abordó" y "No presentado". Pasados 20 minutos de la hora de salida, quien no subió pierde el asiento automáticamente. Muestra el contador de espera y el panel "Venta de pasajes en vivo".
+Calificaciones: al llegar, el pasajero califica con 1 a 5 estrellas, etiquetas (Puntual, Manejo seguro, Vehículo limpio, Amable, Respetó la ruta) y comentario. Si pone 3 o menos, aparecen opciones para reportar (exceso de velocidad, desvío, cobro extra, placa distinta). La reseña aparece en el perfil del conductor. El conductor también califica a sus pasajeros.
+Menú inferior del pasajero: Inicio, Mis viajes, En vivo, Perfil. Del conductor: Panel, Pasajeros, En ruta, Perfil. Desde Perfil se puede cambiar de modo pasajero a conductor.
+Convierte la app en PWA instalable: manifest con nombre "VIP Ruta Segura", íconos 192 y 512, display standalone y service worker.

@@ -1,0 +1,40 @@
+AVISO: esta guía es de la versión simulada. La versión real (Neon + servidor Node) se explica en README.md.
+Netlify Drop ya no sirve para publicarla porque ahora hay servidor; los pasos 2 a 5 (instalar en el celular, PWA) siguen valiendo.
+
+VIP RUTA SEGURA · CÓMO TENERLA EN ANDROID Y IPHONE
+==================================================
+
+Esta carpeta ya es una app web instalable (PWA). No necesitas programar nada para probarla en el celular.
+
+1) Subirla a internet (5 minutos, gratis)
+   - Entra a https://app.netlify.com/drop
+   - Arrastra ESTA carpeta completa (vip-ruta-segura-app) a la página.
+   - Netlify te da un enlace tipo https://algo.netlify.app. Ese enlace es tu app.
+   - Alternativa: GitHub Pages o Vercel. Debe ser https para que funcione el GPS y la instalación.
+
+2) Instalarla en Android
+   - Abre el enlace en Chrome.
+   - Menú (⋮) > "Instalar app" o "Agregar a la pantalla principal".
+   - Aparece el ícono VIP y abre a pantalla completa, como una app normal.
+
+3) Instalarla en iPhone
+   - Abre el enlace en Safari (tiene que ser Safari).
+   - Botón Compartir > "Agregar a pantalla de inicio".
+   - Listo, queda el ícono VIP.
+
+4) Qué funciona de verdad al instalarla así
+   - GPS real: al compartir ubicación, el celular pide permiso y usa su ubicación (punto azul en el mapa).
+   - Fotos reales: la selfie y las fotos del vehículo abren la cámara del celular.
+   - WhatsApp: los botones de compartir y SOS abren WhatsApp con el mensaje armado.
+   - Los datos se guardan en ese celular. Para que el pasajero y el conductor se vean entre celulares distintos hace falta una base de datos (ver punto 6).
+
+5) Publicarla en Play Store y App Store (si el curso lo pide)
+   - Entra a https://www.pwabuilder.com, pega el enlace de Netlify y descarga el paquete de Android (y el de iOS).
+   - Play Store: cuenta de Google Play Console (pago único). App Store: cuenta Apple Developer (pago anual) y una Mac con Xcode.
+   - Otra ruta: envolver la app con Capacitor (capacitorjs.com), que genera los proyectos Android Studio y Xcode.
+
+6) Volverla automática de verdad (varios celulares a la vez)
+   - En Lovable, usa los 4 prompts de PROMPTS-LOVABLE.txt en su proyecto actual.
+   - Supabase guarda usuarios, viajes, asientos y calificaciones, y con Realtime los asientos y el GPS se actualizan solos en todos los celulares.
+   - Pagos reales: Izipay acepta Yape, Plin y tarjetas Visa en una sola integración; Culqi y Mercado Pago aceptan Yape y tarjetas. Requieren RUC y cuenta de comercio, así que para el curso basta con el pago simulado.
+   - Validación de DNI real: se conecta a un servicio autorizado de consulta RENIEC desde el servidor (nunca desde el celular).
