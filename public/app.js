@@ -1070,6 +1070,7 @@ SCREENS.d_live = () => {
   F.liveTrip = t.id;
   return top('En ruta', { back:false, sub: OFF[t.from].city+' → '+OFF[t.to].city+' · '+t.time })+'<main class="scr">'+liveView(t, 'd')+'</main>';
 };
+let gpsWarned = false;
 function startWatch(tid){
   if (!navigator.geolocation) return toast('Tu navegador no tiene GPS.','bad');
   stopWatch(); GPSW.tripId = tid; GPSW.arrived = false;
@@ -1077,7 +1078,7 @@ function startWatch(tid){
     const c = pos.coords; const spd = c.speed != null && isFinite(c.speed) ? Math.round(c.speed*3.6) : null;
     DB_.live[tid] = { lat:c.latitude, lon:c.longitude, speed:spd || 0, at:new Date().toISOString() };
     const now = Date.now();
-    if (now - GPSW.last >= 8000){ GPSW.last = now; POST('/trips/'+encodeURIComponent(tid)+'/location', { lat:c.latitude, lon:c.longitude, speed:spd }).catch(e => { if (e.status === 409) stopWatch(); }); }
+    if (now - GPSW.last >= 8000){ GPSW.last = now; POST('/trips/'+encodeURIComponent(tid)+'/location', { lat:c.latitude, lon:c.longitude, speed:spd }).then(() => { gpsWarned = false; }).catch(e => { if (e.status === 409) return stopWatch(); if (!gpsWarned){ gpsWarned = true; toast('No pudimos enviar tu ubicación. Revisa tu internet; seguimos intentando.','bad'); } }); }
     const t = trip(tid); if (t && !GPSW.arrived && liveOf(t).p >= 0.985 && t.status === 'started'){ GPSW.arrived = true; finishTripNow(tid, true); }
   }, err => { stopWatch(); toast(err && err.code === 1 ? 'Activa el permiso de ubicación del navegador para transmitir tu GPS.' : 'No pudimos leer tu GPS. Revisa que esté encendido.','bad'); if (cur().s === 'd_live') render(true); }, { enableHighAccuracy:true, maximumAge:5000, timeout:25000 });
 }
@@ -1235,17 +1236,18 @@ function render(keepScroll){
 }
 async function runLoad(c){
   try{ c.sig = JSON.stringify(await LOAD[c.s](c.p || {})); c.err = null; c.ok = true; }
-  catch(e){ if (e.status === 401){ c.loading = false; return fail(e); } c.err = e.message; }
+  catch(e){ if (e.status === 401){ c.loading = false; return fail(e); } c.err = e.message; if (cur() === c) toast(esc(e.message),'bad'); }
   c.loading = false; c.loaded = true; c.lastPoll = Date.now();
   if (cur() === c) render();
 }
+let pollWarned = false;   // un solo aviso mientras dure la falla; se rearma cuando vuelve a funcionar
 async function silentRefresh(c, force){
   if (!c || !LOAD[c.s] || c.loading || c.refreshing) return;
   c.refreshing = true;
   try{
-    const sig = JSON.stringify(await LOAD[c.s](c.p || {})); c.err = null; c.ok = true;
+    const sig = JSON.stringify(await LOAD[c.s](c.p || {})); c.err = null; c.ok = true; pollWarned = false;
     if (cur() === c && (force || sig !== c.sig)){ c.sig = sig; render(true); } else c.sig = sig;
-  }catch(e){ if (e.status === 401) fail(e); }
+  }catch(e){ if (e.status === 401) fail(e); else if (!pollWarned && cur() === c){ pollWarned = true; toast(esc(e.message),'bad'); } }
   finally{ c.refreshing = false; c.lastPoll = Date.now(); }
 }
 const refreshCur = () => silentRefresh(cur(), true);
@@ -1324,7 +1326,7 @@ async function boardByCode(tid, text){
     say((r.already ? 'Ya había abordado: ' : 'Abordó: ')+r.name+' · asiento '+r.seats.join(', ')+'.');
     toast((r.already ? 'Ya estaba a bordo: ' : 'Abordó: ')+esc(firstName(r.name))+' · asiento '+r.seats.join(', ')+'.');
     silentRefresh(cur(), true);
-  }catch(e){ say(e.message, true); }
+  }catch(e){ say(e.message, true); toast(esc(e.message),'bad'); }
 }
 
 
@@ -1377,7 +1379,7 @@ ACT.doLogin = () => once(async () => {
   const err = document.getElementById('lerr'); if (err) err.textContent = '';
   let r;
   try{ r = await POST('/auth/login', { email:(F.lemail||'').trim(), password:F.lpass||'' }); }
-  catch(e){ if (err) err.textContent = e.message; else toast(esc(e.message),'bad'); return; }
+  catch(e){ if (err) err.textContent = e.message; toast(esc(e.message),'bad'); return; }
   ME = r.me; F = {};
   if (ME.isAdmin) S.role = 'admin'; else if (S.role === 'admin') S.role = null; else if (S.role === 'conductor' && !ME.driver) S.role = 'pasajero';
   save();
@@ -1395,8 +1397,9 @@ ACT.switchRole = (r) => {
   S.role = r; save(); F = {}; tabTo(homeOf(r)); toast('Modo '+r+' activado.');
 };
 ACT.logout = () => confirmSheet('¿Cerrar sesión?', 'Tus reservas y datos quedan guardados en tu cuenta.', 'Cerrar sesión', async () => {
-  try{ await POST('/auth/logout'); }catch(e){}
+  let lo = null; try{ await POST('/auth/logout'); }catch(e){ lo = e; }
   stopWatch(); ME = null; S.role = null; save(); F = {}; hold = { tripId:null, bookingId:null, seats:[], until:0 }; stack = [{ s:'welcome' }]; render();
+  if (lo) toast('No pudimos cerrar tu sesión en el servidor. Si al volver sigues dentro, cierra sesión otra vez.','bad');
 });
 
 /* verificación */
@@ -1813,13 +1816,19 @@ setInterval(() => {
   if (iv && c.loaded && !document.hidden && Date.now() - (c.lastPoll || 0) >= iv && !isTyping()){ c.lastPoll = Date.now(); silentRefresh(c); }
 }, 1000);
 
+/* Red de seguridad: un fallo que ninguna pantalla manejó también se avisa con un toast. */
+let lastErrToast = 0;
+function unexpected(msg){ const n = Date.now(); if (n - lastErrToast < 4000) return; lastErrToast = n; toast(esc(msg || 'Algo salió mal. Inténtalo otra vez.'),'bad'); }
+window.addEventListener('unhandledrejection', e => { const r = e.reason; if (r && r.status === 401 && ME) return fail(r); unexpected(r && (r.status || r.offline) ? r.message : null); });
+window.addEventListener('error', e => { if (!e.message || /ResizeObserver|Script error/i.test(e.message)) return; unexpected(); });
+
 /* =========================================================
    Arranque: sesión del servidor, pantalla de bienvenida
    ========================================================= */
 stack = [{ s:'splash' }]; render();
 (async () => {
-  const t0 = Date.now(); let r = null;
-  try{ r = await GET('/me'); }catch(e){}
+  const t0 = Date.now(); let r = null, bootErr = null;
+  try{ r = await GET('/me'); }catch(e){ bootErr = e; }
   ME = r && r.me ? r.me : null;
   const wait = Math.max(0, 1500 - (Date.now() - t0)); await new Promise(res => setTimeout(res, wait));
   if (ME){
@@ -1832,5 +1841,6 @@ stack = [{ s:'splash' }]; render();
     if (r && r.blocked !== undefined) setTimeout(() => toast('Tu cuenta está bloqueada. Contacta a la central VIP.'+(r.blocked ? ' Motivo: '+esc(r.blocked) : ''),'bad'), 300);
   }
   render();
+  if (bootErr) setTimeout(() => toast('No pudimos conectar con el servidor. '+esc(bootErr.message),'bad'), 300);
 })();
 })();

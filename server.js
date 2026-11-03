@@ -6,7 +6,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { q, tx, migrate, pool } = require('./db');
-const { sendMail, lookupDni, esc } = require('./services');
+const { sendMail, lookupDni, esc, MAIL_OK } = require('./services');
 
 const PROD = process.env.NODE_ENV === 'production';
 const SECRET = process.env.SESSION_SECRET || (PROD ? '' : 'dev-secret-cambia-esto-en-el-env-0123456789');
@@ -218,6 +218,8 @@ app.set('trust proxy', 1);
 app.disable('x-powered-by');
 app.use((req, res, next) => { res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('X-Frame-Options', 'SAMEORIGIN'); res.setHeader('Referrer-Policy', 'same-origin'); next(); });
 app.use(express.json({ limit: '7mb' }));
+// Salud del servicio, sin sesión ni tareas programadas: para el hosting y monitores externos.
+app.get('/health', A(async (req, res) => { await q('select 1'); res.setHeader('Cache-Control', 'no-store'); res.json({ ok: true, mail: MAIL_OK }); }));
 app.use('/api', (req, res, next) => { res.setHeader('Cache-Control', 'no-store'); next(); });
 app.use('/api', A(async (req, res, next) => { await lazyJobs(); next(); }));
 app.use('/api', loadUser);
@@ -246,10 +248,14 @@ api.post('/auth/code', A(async (req, res) => {
   const n = (await q(`select count(*)::int n from email_codes where lower(email) = $1 and created_at > now() - interval '1 day'`, [email])).rows[0].n;
   if (n >= 10) fail(429, 'Pediste demasiados códigos hoy. Inténtalo mañana.');
   const code = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
-  await q(`insert into email_codes (email, code_hash, expires_at) values ($1,$2, now() + interval '10 minutes')`, [email, sha(email + '|' + code)]);
-  await sendMail(email, 'Tu código de VIP Ruta Segura: ' + code, 'Verifica tu correo',
+  const row = (await q(`insert into email_codes (email, code_hash, expires_at) values ($1,$2, now() + interval '10 minutes') returning id`, [email, sha(email + '|' + code)])).rows[0];
+  const sent = await sendMail(email, 'Tu código de VIP Ruta Segura: ' + code, 'Verifica tu correo',
     '<p>Tu código es:</p><p style="font-size:32px;letter-spacing:6px;font-weight:800;margin:8px 0">' + code + '</p><p>Vence en 10 minutos.</p>',
     'Tu código de VIP Ruta Segura es ' + code + ' (vence en 10 minutos).');
+  if (!sent && MAIL_OK) {
+    await q('delete from email_codes where id = $1', [row.id]); // sin código enviado no hay espera de 45 s
+    const e = new Error('No pudimos enviar el correo ahora. Inténtalo en un momento.'); e.status = 502; e.expose = true; throw e;
+  }
   res.json({ ok: true });
 }));
 
