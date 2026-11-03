@@ -36,7 +36,8 @@ Abre http://localhost:3000. Al arrancar crea las tablas y el usuario administrad
 | `DATABASE_URL` | Neon → tu proyecto → **Connection string** (la que termina en `?sslmode=require`) |
 | `SESSION_SECRET` | Cualquier texto largo y aleatorio (32+ caracteres) |
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_NAME` | El administrador se crea (o se actualiza) solo al arrancar |
-| `GMAIL_USER` + (`GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN`) | **API de Gmail por HTTPS**, la que funciona en Render gratis (ver «Correo con la API de Gmail» abajo) |
+| `BREVO_API_KEY`, `BREVO_SENDER` | **Brevo por HTTPS** (la opción más simple en Render gratis). Clave en https://app.brevo.com → SMTP y API → Claves de API. `BREVO_SENDER` es el correo remitente, que debe estar **verificado** en Brevo → Remitentes. Si llenas esto, lo de Gmail se ignora |
+| `GMAIL_USER` + (`GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN`) | Alternativa: **API de Gmail por HTTPS** (ver «Correo con la API de Gmail» abajo) |
 | `GMAIL_USER`, `GMAIL_APP_PASSWORD` | Alternativa por SMTP, solo donde el hosting lo permita (tu PC, Render de pago): cuenta con verificación en 2 pasos → https://myaccount.google.com/apppasswords → contraseña de aplicación de 16 letras. Se ignora si llenas las tres de la API |
 | `APIS_NET_PE_TOKEN` | Token de https://apis.net.pe |
 | `APP_URL`, `PORT`, `NODE_ENV` | Opcionales. En producción usa `NODE_ENV=production` |
@@ -50,8 +51,8 @@ Render gratis bloquea los puertos SMTP, así que la contraseña de aplicación n
 1. Entra a https://console.cloud.google.com, crea un proyecto y en **APIs y servicios → Biblioteca** activa **Gmail API**.
 2. **APIs y servicios → Pantalla de consentimiento de OAuth**: tipo **Externo**, nombre de la app, tu correo. En **Permisos** agrega `https://www.googleapis.com/auth/gmail.send`. En **Usuarios de prueba** agrega tu Gmail.
 3. **Credenciales → Crear credenciales → ID de cliente de OAuth**, tipo **Aplicación web**. En **URI de redireccionamiento autorizados** pon `https://developers.google.com/oauthplayground`. Copia el **ID de cliente** (`GMAIL_CLIENT_ID`) y el **secreto** (`GMAIL_CLIENT_SECRET`).
-4. Abre https://developers.google.com/oauthplayground, pulsa la rueda ⚙ → marca **Use your own OAuth credentials** y pega el ID y el secreto. A la izquierda escribe el permiso `https://www.googleapis.com/auth/gmail.send` → **Authorize APIs** → entra con el Gmail que enviará los correos → **Exchange authorization code for tokens**. Copia el **Refresh token** (`GMAIL_REFRESH_TOKEN`).
-5. Vuelve a la pantalla de consentimiento y pulsa **Publicar aplicación** (estado «En producción»). Si la dejas en «Prueba», el refresh token **vence a los 7 días** y los correos dejan de salir. Google avisará que la app no está verificada: para uso propio no hace falta verificarla.
+4. **Antes de generar el token**, en la pantalla de consentimiento (**Público / Audience**) pulsa **Publicar aplicación** (estado «En producción»). Si el token se crea con la app en «Prueba», **vence a los 7 días** y los correos dejan de salir. Google avisará que la app no está verificada: para uso propio no hace falta verificarla.
+5. Abre https://developers.google.com/oauthplayground, pulsa la rueda ⚙ → marca **Use your own OAuth credentials** y pega el ID y el secreto. A la izquierda escribe el permiso `https://www.googleapis.com/auth/gmail.send` → **Authorize APIs** → entra con el Gmail que enviará los correos (si sale «Google no verificó esta app»: **Avanzado → Ir a… (no seguro)**) → **Exchange authorization code for tokens**. Copia el **Refresh token** (`GMAIL_REFRESH_TOKEN`).
 6. Pon `GMAIL_USER` (el mismo Gmail) y los tres valores en las variables de Render y reinicia.
 
 Para comprobarlo, abre `/health`: `"mail": true` indica que las variables están. Luego pide un código de registro; si falla, el motivo exacto queda en los registros de Render (`[correo] no se pudo enviar…`).

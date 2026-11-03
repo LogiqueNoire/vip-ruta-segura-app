@@ -1,17 +1,30 @@
 'use strict';
 const nodemailer = require('nodemailer');
 
-/* ---------------- Correo (Gmail) ----------------
-   1) API de Gmail por HTTPS (GMAIL_CLIENT_ID/SECRET/REFRESH_TOKEN): funciona en Render gratis, que bloquea SMTP.
-   2) SMTP con contraseña de aplicación (GMAIL_APP_PASSWORD): para tu PC o hostings que dejan usar SMTP.
-   3) Sin nada: los correos solo se imprimen en la consola. */
-const { GMAIL_USER, GMAIL_APP_PASSWORD, GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN } = process.env;
-const USE_API = !!(GMAIL_USER && GMAIL_CLIENT_ID && GMAIL_CLIENT_SECRET && GMAIL_REFRESH_TOKEN);
-const MAIL_OK = USE_API || !!(GMAIL_USER && GMAIL_APP_PASSWORD);
-const transport = USE_API ? nodemailer.createTransport({ streamTransport: true, buffer: true })
+/* ---------------- Correo ----------------
+   1) Brevo por HTTPS (BREVO_API_KEY + BREVO_SENDER): funciona en Render gratis, que bloquea SMTP.
+   2) API de Gmail por HTTPS (GMAIL_CLIENT_ID/SECRET/REFRESH_TOKEN).
+   3) SMTP con contraseña de aplicación (GMAIL_APP_PASSWORD): para tu PC o hostings que dejan usar SMTP.
+   4) Sin nada: los correos solo se imprimen en la consola. */
+const { GMAIL_USER, GMAIL_APP_PASSWORD, GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN, BREVO_API_KEY, BREVO_SENDER } = process.env;
+const BREVO_FROM = BREVO_SENDER || GMAIL_USER;   // debe ser un remitente verificado en Brevo
+const USE_BREVO = !!(BREVO_API_KEY && BREVO_FROM);
+const USE_API = !USE_BREVO && !!(GMAIL_USER && GMAIL_CLIENT_ID && GMAIL_CLIENT_SECRET && GMAIL_REFRESH_TOKEN);
+const MAIL_OK = USE_BREVO || USE_API || !!(GMAIL_USER && GMAIL_APP_PASSWORD);
+const transport = USE_BREVO ? null
+  : USE_API ? nodemailer.createTransport({ streamTransport: true, buffer: true })
   : MAIL_OK ? nodemailer.createTransport({ service: 'gmail', auth: { user: GMAIL_USER, pass: GMAIL_APP_PASSWORD }, connectionTimeout: 10000, greetingTimeout: 10000, socketTimeout: 15000 })
   : null;
-if (!MAIL_OK) console.warn('[correo] Falta configurar Gmail (GMAIL_USER y GMAIL_CLIENT_ID/SECRET/REFRESH_TOKEN, o GMAIL_APP_PASSWORD): los correos solo se imprimen en esta consola.');
+if (!MAIL_OK) console.warn('[correo] Falta configurar el correo (BREVO_API_KEY y BREVO_SENDER, o GMAIL_*): los correos solo se imprimen en esta consola.');
+
+async function sendViaBrevo(to, subject, html, text) {
+  const r = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST', headers: { 'api-key': BREVO_API_KEY, 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ sender: { name: 'VIP Ruta Segura', email: BREVO_FROM }, to: [{ email: to }], subject, htmlContent: html, textContent: text }),
+    signal: AbortSignal.timeout(10000)
+  });
+  if (!r.ok) throw new Error('Brevo ' + r.status + ' ' + (await r.text().catch(() => '')).slice(0, 300));
+}
 
 let gToken = { v: '', exp: 0 };
 async function gmailToken() {
@@ -48,10 +61,13 @@ function layout(title, bodyHtml) {
 // No lanza: un correo fallido nunca debe romper la operación principal.
 async function sendMail(to, subject, title, html, text) {
   const body = layout(title, html);
-  if (!transport) { console.log('[correo→' + to + '] ' + subject + '\n' + (text || title)); return false; }
+  if (!MAIL_OK) { console.log('[correo→' + to + '] ' + subject + '\n' + (text || title)); return false; }
   try {
-    const msg = { from: '"VIP Ruta Segura" <' + GMAIL_USER + '>', to, subject, html: body, text: text || title };
-    if (USE_API) await sendViaGmailApi(msg); else await transport.sendMail(msg);
+    if (USE_BREVO) await sendViaBrevo(to, subject, body, text || title);
+    else {
+      const msg = { from: '"VIP Ruta Segura" <' + GMAIL_USER + '>', to, subject, html: body, text: text || title };
+      if (USE_API) await sendViaGmailApi(msg); else await transport.sendMail(msg);
+    }
     return true;
   } catch (e) { console.error('[correo] no se pudo enviar a ' + to + ': ' + e.message); return false; }
 }
