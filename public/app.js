@@ -1235,7 +1235,7 @@ function render(keepScroll){
   renderSide();
 }
 async function runLoad(c){
-  try{ c.sig = JSON.stringify(await LOAD[c.s](c.p || {})); c.err = null; c.ok = true; }
+  try{ c.sig = JSON.stringify(await LOAD[c.s](c.p || {})); c.err = null; c.ok = true; if (c.k) VCACHE[c.k] = { ok:true, sig:c.sig }; }
   catch(e){ if (e.status === 401){ c.loading = false; return fail(e); } c.err = e.message; if (cur() === c) toast(esc(e.message),'bad'); }
   c.loading = false; c.loaded = true; c.lastPoll = Date.now();
   if (cur() === c) render();
@@ -1252,8 +1252,12 @@ async function silentRefresh(c, force){
 }
 const refreshCur = () => silentRefresh(cur(), true);
 function reload(){ const c = cur(); c.loaded = false; c.loading = false; c.ok = false; render(); }
-function go(s, p){ stack.push({ s, p:p||{} }); render(); }
-function tabTo(s){ stack = [{ s, p:{} }]; render(); }
+const VCACHE = {};   // vistas ya cargadas: al volver se muestran al toque y se refrescan por detrás
+function mk(s, p){ p = p || {}; const k = s+'|'+JSON.stringify(p); const h = VCACHE[k]; const e = { s, p, k };
+  if (h && h.ok && LOAD[s]){ e.loaded = true; e.ok = true; e.sig = h.sig; e.lastPoll = 0; e.stale = true; } return e; }
+function show(){ const c = cur(); render(); if (c.stale){ c.stale = false; silentRefresh(c, true); } }
+function go(s, p){ stack.push(mk(s, p)); show(); }
+function tabTo(s){ stack = [mk(s, {})]; show(); }
 
 /* ---------- avisos y hojas */
 let toastT = null;
@@ -1398,7 +1402,7 @@ ACT.switchRole = (r) => {
 };
 ACT.logout = () => confirmSheet('¿Cerrar sesión?', 'Tus reservas y datos quedan guardados en tu cuenta.', 'Cerrar sesión', async () => {
   let lo = null; try{ await POST('/auth/logout'); }catch(e){ lo = e; }
-  stopWatch(); ME = null; S.role = null; save(); F = {}; hold = { tripId:null, bookingId:null, seats:[], until:0 }; stack = [{ s:'welcome' }]; render();
+  stopWatch(); for (const k in VCACHE) delete VCACHE[k]; ME = null; S.role = null; save(); F = {}; hold = { tripId:null, bookingId:null, seats:[], until:0 }; stack = [{ s:'welcome' }]; render();
   if (lo) toast('No pudimos cerrar tu sesión en el servidor. Si al volver sigues dentro, cierra sesión otra vez.','bad');
 });
 
@@ -1830,7 +1834,7 @@ stack = [{ s:'splash' }]; render();
   const t0 = Date.now(); let r = null, bootErr = null;
   try{ r = await GET('/me'); }catch(e){ bootErr = e; }
   ME = r && r.me ? r.me : null;
-  const wait = Math.max(0, 1500 - (Date.now() - t0)); await new Promise(res => setTimeout(res, wait));
+  
   if (ME){
     if (ME.isAdmin) S.role = 'admin';
     else if (S.role === 'admin' || !S.role || (S.role === 'conductor' && !ME.driver)) S.role = ME.driver && !S.role ? null : 'pasajero';

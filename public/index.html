@@ -5,13 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#F5F6F8">
 <meta name="description" content="Reserva tu asiento entre Trujillo y Chiclayo con conductores verificados, GPS en vivo y pagos con Yape y Plin.">
-<link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="VIP Ruta">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <style>
 html{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);box-sizing:border-box}
 body{margin:0}
@@ -445,8 +440,8 @@ small{font-size:12.5px}
 .tripchips .chip{flex-shrink:0}
 
 /* ---------- hoja inferior y avisos */
-.sheet-bg{position:absolute;inset:0;background:rgba(22,24,29,.48);display:flex;align-items:flex-end;z-index:50;animation:fade .2s}
-.sheet{background:var(--surface);width:100%;border-radius:24px 24px 0 0;padding:8px 18px 22px;max-height:90%;overflow-y:auto;display:flex;flex-direction:column;gap:14px;animation:up .26s cubic-bezier(.2,.9,.3,1)}
+.sheet-bg{position:absolute;inset:0;background:rgba(22,24,29,.48);display:flex;align-items:flex-end;z-index:50;animation:none}
+.sheet{background:var(--surface);width:100%;border-radius:24px 24px 0 0;padding:8px 18px 22px;max-height:90%;overflow-y:auto;display:flex;flex-direction:column;gap:14px;animation:none}
 .sheet .grab{width:44px;height:5px;border-radius:5px;background:#D5D8DE;margin:4px auto 2px}
 .sheet h3{font-family:var(--f-display);font-stretch:112%;font-weight:850;font-size:20px}
 .msgbox{background:#F7F8FA;border:1px solid var(--line);border-radius:14px;padding:12px;font-size:13.5px;color:var(--ink2);white-space:pre-wrap;word-break:break-word}
@@ -456,7 +451,7 @@ small{font-size:12.5px}
 .emerg small{color:var(--ink2);font-weight:700}
 @keyframes fade{from{opacity:0}}
 @keyframes up{from{transform:translateY(40px);opacity:.4}}
-.toast{position:absolute;left:14px;right:14px;bottom:86px;z-index:60;background:var(--ink);color:#fff;padding:13px 14px;border-radius:16px;font-weight:600;font-size:14px;display:flex;gap:10px;align-items:center;box-shadow:0 14px 30px -10px rgba(22,24,29,.5);animation:up .25s}
+.toast{position:absolute;left:14px;right:14px;bottom:86px;z-index:60;background:var(--ink);color:#fff;padding:13px 14px;border-radius:16px;font-weight:600;font-size:14px;display:flex;gap:10px;align-items:center;box-shadow:0 14px 30px -10px rgba(22,24,29,.5);animation:none}
 .toast.ok svg{color:#5FD3A0}
 .toast.bad svg{color:#FF8C82}
 .toast.gold svg{color:var(--gold)}
@@ -475,7 +470,7 @@ small{font-size:12.5px}
 /* ---------- inicio guiado */
 .onb{flex:1;display:flex;flex-direction:column;padding:14px 22px 22px;min-height:0;overflow-y:auto;background:radial-gradient(120% 60% at 50% 30%,#FFFFFF 0%,var(--bg) 75%)}
 .onb-top{display:flex;justify-content:space-between;align-items:center;min-height:44px}
-.onb-mid{flex:1;display:flex;flex-direction:column;justify-content:center;gap:18px;animation:fadein .35s ease}
+.onb-mid{flex:1;display:flex;flex-direction:column;justify-content:center;gap:18px}
 .onb-mid .h-hero{font-size:36px}
 .onb-mid .lead{font-size:18px;max-width:28ch}
 .onb-badge{width:124px;height:124px;border-radius:38px;background:var(--gold);color:var(--ink);display:grid;place-items:center;box-shadow:0 18px 30px -16px rgba(142,98,0,.7);flex-shrink:0}
@@ -567,7 +562,7 @@ small{font-size:12.5px}
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <script src="app.js"></script>
 <script>
-if ('serviceWorker' in navigator){ window.addEventListener('load', function(){ navigator.serviceWorker.register('sw.js').catch(function(){}); }); }
+if ('serviceWorker' in navigator){ navigator.serviceWorker.getRegistrations().then(function(rs){ rs.forEach(function(r){ r.unregister(); }); }).catch(function(){}); if (window.caches) caches.keys().then(function(ks){ ks.forEach(function(k){ caches.delete(k); }); }).catch(function(){}); }
 </script>
 </body>
 </html>
