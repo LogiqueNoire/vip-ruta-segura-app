@@ -3,7 +3,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 process.env.SHEETS_READ_WEBHOOK_URL = 'https://make.example.test/read';
-const { normalizarFilas, listarViajes, buscarUsuarioPorCorreo } = require('../sheets-store');
+const { normalizarFilas, leerTabla, listarViajes, buscarUsuarioPorCorreo } = require('../sheets-store');
 
 const tripColumns = [
   'id','driver_id','from_off','trip_date','dep_time','dep_at','price','seats',
@@ -49,6 +49,64 @@ test('maps the users sheet format and its email column', () => {
   assert.equal(user.name, 'Demo User');
 });
 
+const sheetFormats = [
+  {
+    table:'reservas',
+    columns:['id','code','trip_id','user_id','status','hold_until','subtotal','promo_name','promo_pct','total','rated','created_at'],
+    values:['3','VR003','3','3','confirmado','','45','','0','45','FALSE','2026-11-20T04:19:00Z'],
+    field:'code',
+    value:'VR003'
+  },
+  {
+    table:'asientos_reserva',
+    columns:['id','booking_id','trip_id','seat','active','boarded_at','released_at','noshow','pax_rating'],
+    values:['3','3','3','1','TRUE','','','FALSE',''],
+    field:'seat',
+    value:'1'
+  },
+  {
+    table:'pagos',
+    columns:['id','booking_id','method','amount','operation_no','status','note','decided_by','decided_at','created_at'],
+    values:['3','3','yape','45','DEMO-OP003','confirmado','Pago simulado','2','2026-11-19T04:30:00Z','2026-11-19T04:25:00Z'],
+    field:'operation_no',
+    value:'DEMO-OP003'
+  },
+  {
+    table:'resenas',
+    columns:['id','booking_id','trip_id','driver_id','passenger_id','stars','tags','flags','comment','created_at'],
+    values:['3','3','3','2','3','5','Puntual, Manejo seguro','','Viaje cómodo','2026-11-20T20:00:00Z'],
+    field:'stars',
+    value:'5'
+  },
+  {
+    table:'incidentes',
+    columns:['id','kind','trip_id','user_id','booking_id','issues','lat','lon','status','resolved_by','resolved_at','created_at'],
+    values:['3','sos','3','3','','','','','abierto','','','2026-11-19T23:00:00Z'],
+    field:'kind',
+    value:'sos'
+  },
+  {
+    table:'ubicaciones_en_vivo',
+    columns:['trip_id','lat','lon','speed_kmh','updated_at'],
+    values:['3','-8.1040','-79.0300','0','2026-11-19T23:23:00Z'],
+    field:'trip_id',
+    value:'3'
+  }
+];
+
+for (const format of sheetFormats) {
+  test(`maps ${format.table} rows with its current sheet columns`, () => {
+    const [row] = normalizarFilas(format.table, [positionalRow(format.values)]);
+    const [rowWithHeaders] = normalizarFilas(format.table, [
+      positionalRow(format.columns),
+      positionalRow(format.values)
+    ]);
+
+    assert.equal(row[format.field], format.value);
+    assert.deepEqual(rowWithHeaders, row);
+  });
+}
+
 test('rejects unknown positional formats instead of treating them as empty records', () => {
   assert.throws(() => normalizarFilas('viajes', [positionalRow(['3','2','tru'])]), /columnas no reconocidas/);
   assert.throws(() => normalizarFilas('viajes', [{}]), /fila vacía o inválida/);
@@ -93,4 +151,19 @@ test('falls back to the full users sheet when Make email filtering returns no ro
   assert.equal(requests.length, 2);
   assert.equal(found.id, '2');
   assert.equal(found.email, 'ejemplo@gmail.com');
+});
+
+test('uses the ASCII reviews table name when reading from Make', async t => {
+  const originalFetch = global.fetch;
+  t.after(() => { global.fetch = originalFetch; });
+  let request;
+  global.fetch = async (_url, options) => {
+    request = JSON.parse(options.body);
+    return new Response(JSON.stringify([]), { status:200, headers:{'content-type':'application/json'} });
+  };
+
+  const rows = await leerTabla('resenas');
+
+  assert.deepEqual(request, { operacion:'buscar', tabla:'resenas' });
+  assert.deepEqual(rows, []);
 });

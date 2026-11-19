@@ -9,7 +9,7 @@ const HOJAS = Object.freeze({
   reservas: 'reservas',
   asientosReserva: 'asientos_reserva',
   pagos: 'pagos',
-  resenas: 'reseñas',
+  resenas: 'resenas',
   incidentes: 'incidentes',
   ubicacionesEnVivo: 'ubicaciones_en_vivo'
 });

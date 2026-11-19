@@ -7,7 +7,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { q, tx, migrate, pool } = require('./db');
 const { sendMail, lookupDni, esc, MAIL_OK } = require('./services');
-const { buscarUsuarioPorId, buscarUsuarioPorCorreo, listarViajes, listarReservasUsuario, listarResenasConductor, listarPagosPanel, listarIncidentesPanel } = require('./sheets-store');
+const { buscarUsuarioPorId, buscarUsuarioPorCorreo, leerTabla, listarViajes, listarReservasUsuario, listarResenasConductor, listarPagosPanel, listarIncidentesPanel } = require('./sheets-store');
 
 const PROD = process.env.NODE_ENV === 'production';
 const SECRET = process.env.SESSION_SECRET || (PROD ? '' : 'dev-secret-cambia-esto-en-el-env-0123456789');
@@ -28,7 +28,7 @@ const A = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(ne
 const S = v => String(v == null ? '' : v);
 const isDatabaseId = v => /^(?:0|[1-9]\d*)$/.test(S(v)) && Number.isSafeInteger(Number(v));
 const MAKE_WEBHOOK_URL = S(process.env.MAKE_WEBHOOK_URL).trim();
-const SHEETS_READS = S(process.env.SHEETS_READS) === '1';
+const SHEETS_READS = S(process.env.SHEETS_READS || (S(process.env.SHEETS_READ_WEBHOOK_URL).trim() ? '1' : '0')) === '1';
 const isPhone = v => /^9\d{8}$/.test(S(v));
 const isYmd = v => /^\d{4}-\d{2}-\d{2}$/.test(S(v)) && !isNaN(Date.parse(S(v) + 'T00:00:00Z'));
 const isEmail = v => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(S(v)) && S(v).length <= 120;
@@ -463,9 +463,9 @@ api.get('/trips/:id', needUser, A(async (req, res) => {
   const t = await loadTrip(req.params.id); if (!t) fail(404, 'Este viaje ya no está disponible.');
   const drivers = await driversMap([t.driver_id]);
   const dp = (await q('select yape_phone, plin_phone from driver_profiles where user_id = $1', [t.driver_id])).rows[0] || {};
-  const rv = await q(`select r.stars, r.tags, r.comment, r.created_at, u.name from reviews r join users u on u.id = r.passenger_id where r.driver_id = $1 order by r.created_at desc limit 4`, [t.driver_id]);
+  const rv = (await listarResenasConductor(t.driver_id)).slice(0, 4);
   res.json({ trip: tripDto(t), drivers, pay: { yape: dp.yape_phone || null, plin: dp.plin_phone || null }, seatState: await seatState(t.id, req.user.id),
-    reviews: rv.rows.map(x => ({ s: x.stars, t: x.comment, tags: x.tags, a: shortName(x.name), at: x.created_at })) });
+    reviews: rv.map(x => ({ s: x.stars, t: x.comment, tags: x.tags, a: shortName(x.name), at: x.created_at })) });
 }));
 api.get('/trips/:id/seats', needUser, A(async (req, res) => {
   const t = await loadTrip(req.params.id); if (!t) fail(404, 'Este viaje ya no está disponible.');
@@ -649,7 +649,7 @@ api.post('/bookings/:id/rate', needUser, A(async (req, res) => {
     if (flags.length) await c.query(`insert into incidents (kind, trip_id, user_id, booking_id, issues) values ('reporte',$1,$2,$3,$4)`, [b.trip_id, req.user.id, b.id, flags]);
     return { bookingId: b.id, tripId: b.trip_id, driverId: b.driver_id };
   });
-  await enviarAMake('reseñas', {
+  await enviarAMake('resenas', {
     id: String(reviewData.bookingId), request_id: String(reviewData.bookingId),
     booking_id: String(reviewData.bookingId),
     trip_id: String(reviewData.tripId),
@@ -779,6 +779,11 @@ async function ownTrip(req) {
   if (!t || (t.driver_id !== req.user.id && !req.user.is_admin)) fail(404, 'No encontramos ese viaje.');
   return t;
 }
+async function liveLocationForTrip(tripId) {
+  const locations = await leerTabla('ubicaciones_en_vivo', { trip_id: tripId });
+  return locations.reduce((latest, location) =>
+    !latest || Date.parse(location.updated_at || 0) > Date.parse(latest.updated_at || 0) ? location : latest, null);
+}
 api.get('/driver/trips/:id/manifest', needUser, needDriverOrAdmin, A(async (req, res) => {
   const t = await ownTrip(req);
   const r = await q(`select bs.seat, bs.active, bs.boarded_at, bs.noshow, bs.released_at, bs.pax_rating, b.id as booking_id, b.code, b.status as bstatus, b.created_at as bcreated,
@@ -800,7 +805,7 @@ api.get('/driver/trips/:id/manifest', needUser, needDriverOrAdmin, A(async (req,
     if (x.noshow) feed.push({ k: 'libre', seat: x.seat, name: x.name, at: x.released_at });
   });
   feed.sort((a, b) => new Date(b.at) - new Date(a.at));
-  const live = (await q('select lat, lon, speed_kmh, updated_at from live_locations where trip_id = $1', [t.id])).rows[0] || null;
+  const live = await liveLocationForTrip(t.id);
   res.json({ trip: tripDto(t), seats, feed: feed.slice(0, 12), live });
 }));
 
@@ -939,7 +944,7 @@ api.get('/trips/:id/live', needUser, A(async (req, res) => {
   const allowed = t.driver_id === req.user.id || req.user.is_admin ||
     (await q(`select 1 from bookings where trip_id = $1 and user_id = $2 and status in ('por_confirmar','confirmado') limit 1`, [t.id, req.user.id])).rowCount > 0;
   if (!allowed) fail(403, 'Solo los pasajeros de este viaje pueden verlo.');
-  const l = (await q('select lat, lon, speed_kmh, updated_at from live_locations where trip_id = $1', [t.id])).rows[0] || null;
+  const l = await liveLocationForTrip(t.id);
   res.json({ trip: tripDto(t), drivers: await driversMap([t.driver_id]), live: l && { lat: l.lat, lon: l.lon, speed: l.speed_kmh, at: l.updated_at } });
 }));
 

@@ -9,7 +9,7 @@ const GIDS = Object.freeze({
   reservas: 1656189283,
   asientos_reserva: 2021609011,
   pagos: 1514281011,
-  reseñas: 1557130465,
+  resenas: 1557130465,
   incidentes: 1198015377,
   ubicaciones_en_vivo: 651696487
 });
@@ -57,7 +57,6 @@ const numero = value => value === '' || value == null ? null : Number(value);
 const booleano = value => ['true', '1', 'sí', 'si'].includes(texto(value).toLowerCase());
 const lista = value => Array.isArray(value) ? value : texto(value).split(',').map(x => x.trim()).filter(Boolean);
 const ordenarFechaDesc = (a, b, campo) => new Date(b[campo] || 0) - new Date(a[campo] || 0);
-
 const COLUMNAS = Object.freeze({
   usuarios: [
     ['id','email','dni','name','phone','pass_hash','is_admin','blocked','blocked_reason','emerg_name','emerg_phone','pax_status','pax_note','created_at'],
@@ -69,12 +68,30 @@ const COLUMNAS = Object.freeze({
     ['id','driver_id','from_off','trip_date','dep_time','dep_at','price','seats','vtype','veh_model','veh_plate','veh_color','status','started_at','finished_at','created_at'],
     ['id','request_id','driver_id','from','date','time','price','seats','vtype','veh_model','veh_plate','veh_color','dep_at','status','started_at','finished_at','created_at']
   ],
-  reservas: [['id','request_id','code','trip_id','user_id','status','hold_until','subtotal','promo_name','promo_pct','total','rated','created_at']],
-  asientos_reserva: [['id','request_id','booking_id','trip_id','seat','active','boarded_at','released_at','noshow','pax_rating']],
-  pagos: [['id','request_id','booking_id','method','amount','operation_no','status','note','decided_by','decided_at','created_at']],
-  reseñas: [['id','request_id','booking_id','trip_id','driver_id','passenger_id','stars','tags','flags','comment','created_at']],
-  incidentes: [['id','request_id','kind','trip_id','user_id','booking_id','issues','lat','lon','status','resolved_by','resolved_at','created_at']],
-  ubicaciones_en_vivo: [['id','request_id','trip_id','lat','lon','speed_kmh','updated_at']]
+  reservas: [
+    ['id','code','trip_id','user_id','status','hold_until','subtotal','promo_name','promo_pct','total','rated','created_at'],
+    ['id','request_id','code','trip_id','user_id','status','hold_until','subtotal','promo_name','promo_pct','total','rated','created_at']
+  ],
+  asientos_reserva: [
+    ['id','booking_id','trip_id','seat','active','boarded_at','released_at','noshow','pax_rating'],
+    ['id','request_id','booking_id','trip_id','seat','active','boarded_at','released_at','noshow','pax_rating']
+  ],
+  pagos: [
+    ['id','booking_id','method','amount','operation_no','status','note','decided_by','decided_at','created_at'],
+    ['id','request_id','booking_id','method','amount','operation_no','status','note','decided_by','decided_at','created_at']
+  ],
+  resenas: [
+    ['id','booking_id','trip_id','driver_id','passenger_id','stars','tags','flags','comment','created_at'],
+    ['id','request_id','booking_id','trip_id','driver_id','passenger_id','stars','tags','flags','comment','created_at']
+  ],
+  incidentes: [
+    ['id','kind','trip_id','user_id','booking_id','issues','lat','lon','status','resolved_by','resolved_at','created_at'],
+    ['id','request_id','kind','trip_id','user_id','booking_id','issues','lat','lon','status','resolved_by','resolved_at','created_at']
+  ],
+  ubicaciones_en_vivo: [
+    ['trip_id','lat','lon','speed_kmh','updated_at'],
+    ['id','request_id','trip_id','lat','lon','speed_kmh','updated_at']
+  ]
 });
 
 function valoresPosicionales(fila) {
@@ -96,10 +113,10 @@ function normalizarFilas(nombre, filas) {
   if (!Array.isArray(filas)) throw new Error(`Make devolvió un formato de lectura inválido para ${nombre}.`);
   const primeraFila = filas.find(fila => fila != null);
   const encabezados = valoresPosicionales(primeraFila);
-  const usaEncabezados = encabezados && encabezados.length > 1 &&
-    encabezados.map(nombreColumna).includes('id') &&
-    encabezados.some(value => ['email','trip_date','booking_id','created_at'].includes(nombreColumna(value)));
-  const columnas = usaEncabezados ? encabezados.map(nombreColumna) : null;
+  const nombresEncabezado = encabezados && encabezados.map(nombreColumna);
+  const usaEncabezados = !!nombresEncabezado && variantes.some(v =>
+    v.length === nombresEncabezado.length && v.every((col, i) => col === nombresEncabezado[i]));
+  const columnas = usaEncabezados ? nombresEncabezado : null;
   const datos = usaEncabezados ? filas.slice(filas.indexOf(primeraFila) + 1) : filas;
 
   return datos.filter(fila => fila != null).map(fila => {
@@ -141,7 +158,7 @@ async function leerDesdeMake(payload) {
   if (!raw.trim()) return [];
   let data;
   try { data = JSON.parse(raw); } catch (_) { throw new Error('Make lectura devolvió una respuesta no JSON.'); }
-  const result = data?.usuario ?? data?.user ?? data?.usuarios ?? data?.viajes ?? data?.results ?? data?.rows ?? data?.data ?? data;
+  const result = data?.usuario ?? data?.user ?? data?.usuarios ?? data?.viajes ?? data?.resenas ?? data?.results ?? data?.rows ?? data?.data ?? data;
   if (data?.ok === false || data?.error) throw new Error('Make rechazó la lectura solicitada.');
   return result;
 }
@@ -243,7 +260,7 @@ async function listarReservasUsuario(userId, onlyId) {
 }
 
 async function listarResenasConductor(driverId) {
-  const [resenas, usuarios] = await Promise.all([leerTabla('reseñas', { driver_id: driverId }), leerTabla('usuarios')]);
+  const [resenas, usuarios] = await Promise.all([leerTabla('resenas', { driver_id: driverId }), leerTabla('usuarios')]);
   const nombres = new Map(usuarios.map(x => [texto(x.id || x.request_id), x.name]));
   return resenas.sort((a, b) => ordenarFechaDesc(a, b, 'created_at')).map(x => ({
     ...x, stars: numero(x.stars) || 0, tags: lista(x.tags), flags: lista(x.flags),
