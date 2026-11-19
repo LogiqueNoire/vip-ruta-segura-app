@@ -29,6 +29,18 @@ npm start
 
 Abre http://localhost:3000. Al arrancar crea las tablas y el usuario administrador.
 
+### Demostración con viajes de prueba
+
+En un entorno de desarrollo, primero completa la verificación de un conductor y configúrale un número de Yape o Plin. Después agrega viajes futuros en ambos sentidos:
+
+```bash
+npm run seed:demo -- --confirm
+```
+
+El comando usa la `DATABASE_URL` del `.env`, crea hasta cuatro viajes disponibles y se puede repetir sin duplicar las salidas activas. No crea usuarios, reservas ni pagos ficticios; el pasajero puede buscar un viaje, elegir asientos y completar el flujo real de pago y confirmación. El sembrador se bloquea cuando `NODE_ENV=production`.
+
+Para comprobar el recorrido, inicia sesión como pasajero y reserva uno de los viajes; luego confirma el pago desde la cuenta del conductor. El conductor aprobado podrá iniciar la salida cuando sus pasajeros hayan abordado o haya vencido la espera de 20 minutos. En **En ruta** verá claramente la ciudad de salida y destino, y podrá confirmar la llegada para cerrar el viaje.
+
 ## Variables (`.env`)
 
 | Variable | De dónde sale |
@@ -82,6 +94,14 @@ El GPS en vivo ahora es real: el celular del chófer transmite su ubicación cad
 ## Publicarla
 
 Necesita un servidor Node (no sirve Netlify Drop, que solo aloja archivos). Render, Railway o Fly funcionan: comando de inicio `npm start`, carga las mismas variables, pon `NODE_ENV=production` y `APP_URL` con tu dirección https. La tarea de liberar asientos corre dentro del servidor, así que debe estar encendido (en planes gratuitos que se duermen, también se ejecuta al recibir cualquier petición).
+
+## Tablas del prototipo en Google Sheets
+
+La hoja `Vip ruta segura` usa estas pestañas con nombres en español:
+
+`usuarios`, `codigos_correo`, `viajes`, `reservas`, `asientos_reserva`, `pagos`, `reseñas`, `incidentes` y `ubicaciones_en_vivo`.
+
+El catálogo de nombres está centralizado en `sheets-config.js`. La tabla `files` y los campos que apuntan a archivos permanecen en el almacenamiento de archivos hasta completar una migración segura.
 
 ## Lo que conviene saber
 

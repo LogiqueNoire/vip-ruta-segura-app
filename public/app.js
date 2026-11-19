@@ -846,23 +846,26 @@ SCREENS.p_trips = () => {
 
 /* ---------- en vivo (pasajero y conductor): la posición es la del celular del conductor */
 function liveView(t, who){
-  const L = liveOf(t), d = driverFor(t); const follow = !!F.follow;
+  const L = liveOf(t), d = driverFor(t); const follow = !!F.follow; const departure = departStatus(t);
   const rem = (1 - L.p) * TRIP_MIN; const kmLeft = Math.round((1 - L.p) * ROUTE_KM);
   const arrived = L.done;
+  const routeState = arrived ? 'finished' : L.run ? 'active' : '';
+  const routeLabel = arrived ? 'Llegada' : L.run ? 'En ruta' : 'Pendiente';
   const nPax = (DB_.man[t.id] && DB_.man[t.id].seats ? DB_.man[t.id].seats.filter(s => s.state === 'sold' || s.state === 'on').length : 0);
   let status = arrived ? 'Llegó a '+OFF[t.to].name : (L.run ? (L.has ? (L.stale ? 'Sin señal del GPS hace '+Math.round((Date.now()-new Date(L.at))/60000)+' min' : 'En ruta · próximo punto: '+nextTown(t)) : 'Esperando la primera ubicación del conductor…') : (t.status === 'cancelled' ? 'Viaje cancelado' : 'Esperando la salida en '+OFF[t.from].name));
   return '<div class="map" id="mapbox"><div id="map">'+mapSVG(t, follow)+'</div><span class="live-pill"><span class="pulse '+(L.run&&!L.stale?'':'off')+'"></span><span id="lv-pill">'+(L.run?(L.stale?'Sin señal':'GPS en vivo'):arrived?'Viaje terminado':'GPS listo')+'</span></span><div class="mtools"><button data-act="follow" aria-pressed="'+follow+'" aria-label="'+(follow?'Ver ruta completa':'Seguir al vehículo')+'">'+ic(follow?'expand':'gps',20)+'</button></div></div>'+
-    '<div class="card tight"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><b id="lv-status" style="font-size:15px">'+status+'</b></div><div class="progress-line"><i id="lv-bar" style="width:'+(L.p*100).toFixed(1)+'%"></i></div><div class="kv" style="font-size:12.5px"><span>'+OFF[t.from].city+' · '+t.time+'</span><span>'+OFF[t.to].city+' · '+addMin(t.time,TRIP_MIN)+'</span></div></div>'+
+    '<div class="card tight"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><b id="lv-status" style="font-size:15px">'+status+'</b></div><div class="progress-line"><i id="lv-bar" style="width:'+(L.p*100).toFixed(1)+'%"></i></div><div class="trip-route" aria-label="Ruta de '+esc(OFF[t.from].city)+' a '+esc(OFF[t.to].city)+'"><div class="point"><small>Salida</small><b>'+esc(OFF[t.from].city)+'</b><small>'+esc(t.time)+'</small></div><div class="route-state '+routeState+'">'+routeLabel+'</div><div class="point"><small>Llegada</small><b>'+esc(OFF[t.to].city)+'</b><small>'+esc(addMin(t.time,TRIP_MIN))+'</small></div></div></div>'+
     '<div class="stats"><div class="stat"><small>Velocidad</small><b id="lv-spd">'+speedNow(t)+'<em>km/h</em></b></div><div class="stat"><small>Faltan</small><b id="lv-km">'+(L.has||arrived?kmLeft:'—')+'<em>km</em></b></div><div class="stat"><small>Tiempo</small><b id="lv-rem" style="font-size:17px">'+(L.has||arrived?durTxt(rem):'—')+'</b></div></div>'+
     (who === 'p' ? '<div class="card tight"><div class="drvcard">'+avatarOf(d,44)+'<div><b>'+esc(d.name)+'</b><div style="display:flex;gap:6px;align-items:center;margin-top:2px;flex-wrap:wrap">'+verBadge(d)+'<span class="plate">'+esc(d.plate)+'</span><small class="muted">'+esc(d.model)+'</small></div></div></div></div>'
                  : '<div class="note '+(GPSW.id!=null?'ok':'')+'">'+ic('wifi',18)+'<span>'+(t.status==='started' ? (GPSW.tripId===t.id && GPSW.id!=null ? 'Transmitiendo tu ubicación a tus pasajeros y a la central VIP. Mantén esta pantalla abierta.' : 'El viaje está en curso pero no se está transmitiendo tu ubicación. Toca «Activar GPS».') : 'Al iniciar, tus '+nPax+' pasajeros verán la unidad en el mapa con el GPS de tu celular.')+'</span></div>')+
     (S.sharing && S.sharing.tripId === t.id && who === 'p' ? '<div class="sharepill">'+ic('share',18)+'<span>Compartiendo tu viaje con '+esc(S.sharing.name)+'</span><button class="link" data-act="stopShare" style="margin-left:auto;color:#0B5A3C">Detener</button></div>' : '')+
     '<div class="actions2">'+(who==='p' ? '<button class="btn dark" data-act="share" data-arg="'+esc(t.id)+'">'+ic('share',18)+'Compartir ubicación</button>' :
       (arrived ? '<button class="btn dark" data-act="manifestOf" data-arg="'+esc(t.id)+'">Calificar pasajeros</button>' :
-       t.status === 'started' ? '<button class="btn dark" data-act="'+(GPSW.tripId===t.id && GPSW.id!=null?'finishTrip':'gpsOn')+'" data-arg="'+esc(t.id)+'">'+(GPSW.tripId===t.id && GPSW.id!=null?ic('flag',18)+'Terminar viaje':ic('gps',18)+'Activar GPS')+'</button>' :
-       '<button class="btn dark" data-act="startTrip" data-arg="'+esc(t.id)+'">'+ic('play',18)+'Iniciar viaje</button>'))+'<button class="btn sos" data-act="sos" data-arg="'+esc(t.id)+'">'+ic('alert',18)+'SOS</button></div>'+
+       t.status === 'started' ? '<button class="btn dark" data-act="'+(GPSW.tripId===t.id && GPSW.id!=null?'finishTrip':'gpsOn')+'" data-arg="'+esc(t.id)+'">'+(GPSW.tripId===t.id && GPSW.id!=null?ic('flag',18)+'Confirmar llegada a '+esc(OFF[t.to].city):ic('gps',18)+'Activar GPS')+'</button>' :
+       '<button class="btn dark" '+(departure.go?'data-act="startTrip" data-arg="'+esc(t.id)+'"':'disabled')+'>'+ic(departure.go?'play':'clock',18)+(departure.go?'Iniciar viaje':'Esperando salida')+'</button>'))+'<button class="btn sos" data-act="sos" data-arg="'+esc(t.id)+'">'+ic('alert',18)+'SOS</button></div>'+
+    (who === 'd' && t.status === 'active' && !departure.go ? '<p class="hint">'+esc(departure.d)+'</p>' : '')+
     (arrived && who === 'p' ? liveArrived(t) : '')+
-    (t.status === 'started' && who === 'd' ? '<button class="link" data-act="finishTrip" data-arg="'+esc(t.id)+'" style="align-self:center;color:var(--muted)">Ya llegué: terminar el viaje</button>' : '');
+    (t.status === 'started' && who === 'd' ? '<button class="link" data-act="finishTrip" data-arg="'+esc(t.id)+'" style="align-self:center;color:var(--muted)">Ya llegué a '+esc(OFF[t.to].city)+': confirmar llegada</button>' : '');
 }
 function liveArrived(t){
   const b = DB_.bookings.find(x => x.trip.id === t.id && x.status === 'confirmado'); if (!b) return '';
@@ -1084,7 +1087,7 @@ function startWatch(tid){
 }
 function stopWatch(){ if (GPSW.id != null){ try{ navigator.geolocation.clearWatch(GPSW.id); }catch(e){} } GPSW.id = null; GPSW.tripId = null; }
 async function finishTripNow(tid, auto){
-  try{ await POST('/trips/'+encodeURIComponent(tid)+'/finish'); stopWatch(); const t = trip(tid); if (t) t.status = 'finished'; await loadMyTrips().catch(()=>{}); render(true); toast(auto ? 'Llegaste a tu destino. Viaje terminado.' : 'Viaje terminado. Ya puedes calificar a tus pasajeros.'); }
+  try{ await POST('/trips/'+encodeURIComponent(tid)+'/finish'); stopWatch(); const t = trip(tid); if (t) t.status = 'finished'; await loadMyTrips().catch(()=>{}); render(true); const destination = t && OFF[t.to] ? OFF[t.to].city : 'destino'; toast(auto ? 'Llegaste a tu destino. Viaje terminado.' : 'Llegada a '+destination+' confirmada. Ya puedes calificar a tus pasajeros.'); }
   catch(e){ GPSW.arrived = false; fail(e); }
 }
 
@@ -1548,7 +1551,7 @@ ACT.startTrip = (id) => once(async () => {
   startWatch(id); await loadMyTrips().catch(() => {}); render(true); toast('Viaje iniciado. Tus pasajeros ya ven la unidad en el mapa.');
 });
 ACT.gpsOn = (id) => { startWatch(id); setTimeout(() => render(true), 600); toast('Activando tu GPS…','gold'); };
-ACT.finishTrip = (id) => confirmSheet('¿Terminar el viaje?', 'Tus pasajeros podrán calificarte y dejarás de transmitir tu ubicación.', 'Sí, terminar', () => once(() => finishTripNow(id, false)));
+ACT.finishTrip = (id) => { const t = trip(id); confirmSheet('¿Confirmar llegada a '+OFF[t.to].city+'?', 'Tus pasajeros verán que llegaste a destino y podrán calificar el viaje.', 'Confirmar llegada', () => once(() => finishTripNow(id, false))); };
 ACT.board = (arg) => once(async () => {
   const p = arg.split('|'); const tid = p.slice(0,-1).join('|'), s = p[p.length-1];
   const r = await POST('/trips/'+encodeURIComponent(tid)+'/board', { seat:Number(s) }); toast(esc(firstName(r.name))+' abordó. Asiento '+s+'.'); refreshCur();
@@ -1569,7 +1572,7 @@ ACT.rpax = (arg) => once(async () => { const p = arg.split('|'); const n = Numbe
 /* administrador */
 ACT.viewFile = (url) => { if (!url) return toast('No hay archivo.','gold'); sheet('<img src="'+esc(url)+'" alt="Documento" style="width:100%;border-radius:12px;max-height:60vh;object-fit:contain;background:#F7F8FA" onerror="this.outerHTML=\'<p class=muted>Este archivo no es una imagen (puede ser PDF).</p>\'"><a class="btn line" href="'+esc(url)+'" target="_blank" rel="noopener">Abrir en otra pestaña</a>'); };
 ACT.reviewDo = (arg) => {
-  const p = arg.split('|'); const send = (note) => once(async () => { await POST('/admin/review', { userId:p[0], role:p[1], decision:p[2], note }); toast(p[2] === 'approve' ? 'Aprobado. Avisamos por correo.' : 'Rechazado. Avisamos por correo.', p[2] === 'approve' ? 'ok' : 'gold'); await refreshCur(); });
+  const p = arg.split('|'); const send = (note) => once(async () => { const r = await POST('/admin/review', { userId:p[0], role:p[1], decision:p[2], note }); if (r.status !== (p[2] === 'approve' ? 'approved' : 'rejected')) throw new Error('No se guardó el cambio de estado. Vuelve a cargar la revisión.'); toast(p[2] === 'approve' ? 'Conductor aprobado. Ya puede publicar viajes.' : 'Solicitud rechazada. Avisamos por correo.', p[2] === 'approve' ? 'ok' : 'gold'); await refreshCur(); });
   if (p[2] === 'approve') confirmSheet('¿Aprobar?', 'Confirma que la selfie coincide con el DNI y que los documentos son válidos y están vigentes.', 'Sí, aprobar', () => send(''));
   else reasonSheet('¿Rechazar la solicitud?', 'Escribe qué debe corregir. El usuario lo verá y podrá volver a enviar.', 'Rechazar', send);
 };
