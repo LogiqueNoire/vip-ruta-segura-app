@@ -49,6 +49,16 @@ test('maps the users sheet format and its email column', () => {
   assert.equal(user.name, 'Demo User');
 });
 
+test('maps extended user and driver-profile columns without a password field', () => {
+  const columns = ['id','request_id','email','dni','name','phone','is_admin','blocked','blocked_reason','emerg_name','emerg_phone','pax_status','pax_note','created_at','role','status','drv_status','drv_note','lic_num','lic_cat','vtype','model','plate','color','soat_until','rt_ok','yape_phone','plin_phone','submitted_at','reviewed_at'];
+  const values = ['2','2','driver@example.com','70000002','Demo Driver','900000002','FALSE','FALSE','','Emergency','911111112','approved','','2026-11-19T04:30:00Z','conductor','active','approved','','L-123','A-IIa','minivan','Van Demo','DEM-002','Blanco','','FALSE','900000002','','',''];
+  const [user] = normalizarFilas('usuarios', [columns, values]);
+
+  assert.equal(user.drv_status, 'approved');
+  assert.equal(user.lic_num, 'L-123');
+  assert.equal(Object.prototype.hasOwnProperty.call(user, 'pass_hash'), false);
+});
+
 const sheetFormats = [
   {
     table:'reservas',

@@ -61,7 +61,8 @@ const COLUMNAS = Object.freeze({
   usuarios: [
     ['id','email','dni','name','phone','pass_hash','is_admin','blocked','blocked_reason','emerg_name','emerg_phone','pax_status','pax_note','created_at'],
     ['id','email','dni','name','phone','role','status','created_at'],
-    ['id','request_id','email','dni','name','phone','pass_hash','is_admin','blocked','blocked_reason','emerg_name','emerg_phone','pax_status','pax_note','created_at','role','status']
+    ['id','request_id','email','dni','name','phone','pass_hash','is_admin','blocked','blocked_reason','emerg_name','emerg_phone','pax_status','pax_note','created_at','role','status'],
+    ['id','request_id','email','dni','name','phone','is_admin','blocked','blocked_reason','emerg_name','emerg_phone','pax_status','pax_note','created_at','role','status','drv_status','drv_note','lic_num','lic_cat','vtype','model','plate','color','soat_until','rt_ok','yape_phone','plin_phone','submitted_at','reviewed_at']
   ],
   codigos_correo: [['id','request_id','email','code_hash','expires_at','attempts','used','created_at']],
   viajes: [
