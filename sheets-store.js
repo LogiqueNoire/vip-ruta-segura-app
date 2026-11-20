@@ -181,12 +181,13 @@ async function leerTabla(nombre, filtros = {}) {
 }
 
 async function buscarUsuarioPorId(id) {
-  if (!Number.isSafeInteger(Number(id)) || Number(id) < 1) return null;
+  if (!['string', 'number'].includes(typeof id) || !texto(id)) return null;
+  const idText = texto(id);
   const remoto = await leerDesdeMake({ tabla: 'usuarios', id });
   const rows = filasRespuesta(remoto, 'usuarios');
-  const found = rows.find(x => texto(x.id || x.request_id) === texto(id));
+  const found = rows.find(x => texto(x.id || x.request_id) === idText);
   if (found) return found;
-  return (await leerTabla('usuarios')).find(x => texto(x.id || x.request_id) === texto(id)) || null;
+  return (await leerTabla('usuarios')).find(x => texto(x.id || x.request_id) === idText) || null;
 }
 
 async function buscarUsuarioPorCorreo(email) {

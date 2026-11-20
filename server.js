@@ -125,8 +125,8 @@ const needDriverOrAdmin = (req, _res, next) => (!req.user || !(req.user.drv_stat
 const needApprovedDriver = (req, _res, next) => (!req.user || req.user.drv_status !== 'approved') ? next(new HttpError(403, 'Tu verificación de conductor aún no está aprobada.')) : next();
 
 /* ================= DTOs ================= */
-async function meDto(uid) {
-  const u = usuarioDesdeHoja(await buscarUsuarioPorId(uid)); if (!u) return null;
+async function meDto(uid, userRecord) {
+  const u = usuarioDesdeHoja(userRecord || await buscarUsuarioPorId(uid)); if (!u) return null;
   const rating = { a: null, n: 0 };
   const dto = {
     id: String(u.id), email: u.email, name: u.name, phone: u.phone, dni: u.dni, isAdmin: u.is_admin,
@@ -331,8 +331,10 @@ api.post('/auth/login', A(async (req, res) => {
   if (!u) fail(401, 'El correo o la contraseña no coinciden.');
   if (u.pass_hash && !(await bcrypt.compare(S(req.body.password), u.pass_hash))) fail(401, 'El correo o la contraseña no coinciden.');
   if (u.blocked) fail(403, 'Tu cuenta está bloqueada. Contacta a la central VIP.' + (u.blocked_reason ? ' Motivo: ' + u.blocked_reason : ''));
+  const me = await meDto(u.id, u);
+  if (!me) fail(500, 'No pudimos cargar tu perfil. Inténtalo nuevamente.');
   setSession(res, u.id, req.body.remember !== false);
-  res.json({ me: await meDto(u.id) });
+  res.json({ me });
 }));
 api.post('/auth/logout', (req, res) => { clearSession(res); res.json({ ok: true }); });
 

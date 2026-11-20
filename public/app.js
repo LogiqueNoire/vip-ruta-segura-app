@@ -1387,7 +1387,14 @@ ACT.doLogin = () => once(async () => {
   let r;
   try{ r = await POST('/auth/login', { email:(F.lemail||'').trim(), password:F.lpass||'' }); }
   catch(e){ if (err) err.textContent = e.message; toast(esc(e.message),'bad'); return; }
-  ME = r.me; F = {};
+  ME = r && r.me ? r.me : null;
+  if (!ME) {
+    const message = 'No pudimos cargar tu perfil. Inténtalo nuevamente.';
+    if (err) err.textContent = message;
+    toast(message,'bad');
+    return;
+  }
+  F = {};
   if (ME.isAdmin) S.role = 'admin'; else if (S.role === 'admin') S.role = null; else if (S.role === 'conductor' && !ME.driver) S.role = 'pasajero';
   save();
   if (!ME.isAdmin && ME.driver && S.role !== 'pasajero' && S.role !== 'conductor'){ stack = [{ s:'welcome' }]; render(); }

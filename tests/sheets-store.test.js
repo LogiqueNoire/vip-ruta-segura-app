@@ -3,7 +3,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 process.env.SHEETS_READ_WEBHOOK_URL = 'https://make.example.test/read';
-const { normalizarFilas, leerTabla, listarViajes, buscarUsuarioPorCorreo } = require('../sheets-store');
+const { normalizarFilas, leerTabla, listarViajes, buscarUsuarioPorId, buscarUsuarioPorCorreo } = require('../sheets-store');
 
 const tripColumns = [
   'id','driver_id','from_off','trip_date','dep_time','dep_at','price','seats',
@@ -151,6 +151,26 @@ test('falls back to the full users sheet when Make email filtering returns no ro
   assert.equal(requests.length, 2);
   assert.equal(found.id, '2');
   assert.equal(found.email, 'ejemplo@gmail.com');
+});
+
+test('finds a user by a non-numeric Make ID', async t => {
+  const originalFetch = global.fetch;
+  t.after(() => { global.fetch = originalFetch; });
+  const id = 'verificacion-usuario-002';
+  const user = { id, email:'ejemplo@gmail.com', name:'Usuario Demo' };
+  const requests = [];
+  global.fetch = async (_url, options) => {
+    const payload = JSON.parse(options.body);
+    requests.push(payload);
+    return new Response(JSON.stringify(payload.id ? [] : [user]), { status:200, headers:{'content-type':'application/json'} });
+  };
+
+  const found = await buscarUsuarioPorId(id);
+
+  assert.equal(found.id, id);
+  assert.equal(requests.length, 2);
+  assert.equal(requests[0].id, id);
+  assert.equal(requests[1].id, undefined);
 });
 
 test('uses the ASCII reviews table name when reading from Make', async t => {
