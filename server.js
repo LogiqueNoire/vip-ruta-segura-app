@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { verifyPassword } = require('./password-utils');
 const { q, tx, migrate, pool } = require('./db');
 const { sendMail, lookupDni, esc, MAIL_OK } = require('./services');
 const { buscarUsuarioPorId, buscarUsuarioPorCorreo, leerTabla, listarViajes, listarReservasUsuario, listarResenasConductor, listarPagosPanel, listarIncidentesPanel } = require('./sheets-store');
@@ -332,13 +333,8 @@ api.post('/auth/login', A(async (req, res) => {
   limit('login|' + req.ip + '|' + email, 10, 15 * 60e3);
   const u = usuarioDesdeHoja(await buscarUsuarioPorCorreo(email));
   if (!u) fail(401, 'El correo o la contraseña no coinciden.');
-  let passHash = u.pass_hash;
-  if (!passHash) {
-    const stored = (await q('select id, pass_hash from users where lower(email) = $1', [email])).rows[0];
-    if (!stored || S(stored.id) !== S(u.id)) fail(401, 'El correo o la contraseña no coinciden.');
-    passHash = S(stored.pass_hash);
-  }
-  if (!passHash || !(await bcrypt.compare(S(req.body.password), passHash))) fail(401, 'El correo o la contraseña no coinciden.');
+  const passHash = u.pass_hash;
+  if (!passHash || !(await verifyPassword(req.body.password, passHash, true))) fail(401, 'El correo o la contraseña no coinciden.');
   if (u.blocked) fail(403, 'Tu cuenta está bloqueada. Contacta a la central VIP.' + (u.blocked_reason ? ' Motivo: ' + u.blocked_reason : ''));
   const me = await meDto(u.id, u);
   if (!me) fail(500, 'No pudimos cargar tu perfil. Inténtalo nuevamente.');
