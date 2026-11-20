@@ -95,8 +95,8 @@ function cookies(req) {
   const o = {}; S(req.headers.cookie).split(';').forEach(p => { const i = p.indexOf('='); if (i > 0) o[p.slice(0, i).trim()] = decodeURIComponent(p.slice(i + 1).trim()); });
   return o;
 }
-function setSession(res, uid, remember) {
-  const token = jwt.sign({ uid }, SECRET, { expiresIn: '30d' });
+function setSession(res, uid, remember, email) {
+  const token = jwt.sign({ uid, email }, SECRET, { expiresIn: '30d' });
   const parts = ['vip_sid=' + token, 'Path=/', 'HttpOnly', 'SameSite=Lax'];
   if (PROD) parts.push('Secure');
   if (remember) parts.push('Max-Age=' + 30 * 86400);
@@ -110,7 +110,9 @@ async function loadUser(req, res, next) {
     if (t) {
       let p = null; try { p = jwt.verify(t, SECRET); } catch (_) {}
       if (p) {
-        const u = usuarioDesdeHoja(await buscarUsuarioPorId(p.uid));
+        const row = p.email ? await buscarUsuarioPorCorreo(p.email) : await buscarUsuarioPorId(p.uid);
+        const rowId = row && (row.id || row.request_id);
+        const u = row && S(rowId) === S(p.uid) ? usuarioDesdeHoja(row) : null;
         if (u && !u.blocked) req.user = u;
         else if (u && u.blocked) { clearSession(res); req.blocked = u.blocked_reason || true; }
       }
@@ -312,16 +314,17 @@ api.post('/auth/register', A(async (req, res) => {
       return u;
     });
   } catch (err) { if (err.code === '23505') fail(409, 'Ese correo o DNI ya tiene una cuenta.'); throw err; }
-  await enviarAMake('usuarios', {
+  const userRecord = {
     id: String(uid), request_id: String(uid), email: e.email, dni: d.dni,
     name: d.name, phone: S(b.phone), pass_hash: hash,
     is_admin: false, blocked: false, blocked_reason: '',
     emerg_name: S(b.emergName), emerg_phone: S(b.emergPhone),
     pax_status: role === 'pasajero' ? 'activo' : '', pax_note: '',
     created_at: new Date().toISOString(), role, status: 'activo'
-  });
-  setSession(res, uid, b.remember !== false);
-  res.json({ me: await meDto(uid) });
+  };
+  await enviarAMake('usuarios', userRecord);
+  setSession(res, uid, b.remember !== false, e.email);
+  res.json({ me: await meDto(uid, userRecord) });
 }));
 
 api.post('/auth/login', A(async (req, res) => {
@@ -329,11 +332,17 @@ api.post('/auth/login', A(async (req, res) => {
   limit('login|' + req.ip + '|' + email, 10, 15 * 60e3);
   const u = usuarioDesdeHoja(await buscarUsuarioPorCorreo(email));
   if (!u) fail(401, 'El correo o la contraseña no coinciden.');
-  if (u.pass_hash && !(await bcrypt.compare(S(req.body.password), u.pass_hash))) fail(401, 'El correo o la contraseña no coinciden.');
+  let passHash = u.pass_hash;
+  if (!passHash) {
+    const stored = (await q('select id, pass_hash from users where lower(email) = $1', [email])).rows[0];
+    if (!stored || S(stored.id) !== S(u.id)) fail(401, 'El correo o la contraseña no coinciden.');
+    passHash = S(stored.pass_hash);
+  }
+  if (!passHash || !(await bcrypt.compare(S(req.body.password), passHash))) fail(401, 'El correo o la contraseña no coinciden.');
   if (u.blocked) fail(403, 'Tu cuenta está bloqueada. Contacta a la central VIP.' + (u.blocked_reason ? ' Motivo: ' + u.blocked_reason : ''));
   const me = await meDto(u.id, u);
   if (!me) fail(500, 'No pudimos cargar tu perfil. Inténtalo nuevamente.');
-  setSession(res, u.id, req.body.remember !== false);
+  setSession(res, u.id, req.body.remember !== false, u.email);
   res.json({ me });
 }));
 api.post('/auth/logout', (req, res) => { clearSession(res); res.json({ ok: true }); });
@@ -341,7 +350,7 @@ api.post('/auth/logout', (req, res) => { clearSession(res); res.json({ ok: true 
 /* ---------- mi cuenta ---------- */
 api.get('/me', A(async (req, res) => {
   if (!req.user) return res.json({ me: null, blocked: req.blocked ? (req.blocked === true ? '' : req.blocked) : undefined });
-  res.json({ me: await meDto(req.user.id) });
+  res.json({ me: await meDto(req.user.id, req.user) });
 }));
 
 api.put('/me/profile', needUser, A(async (req, res) => {
@@ -355,12 +364,12 @@ api.put('/me/profile', needUser, A(async (req, res) => {
     add('emerg_name', n); add('emerg_phone', S(b.emerg.phone));
   }
   if (sets.length) await q('update users set ' + sets.join(', ') + ' where id = $1', vals);
-  res.json({ me: await meDto(req.user.id) });
+  res.json({ me: await meDto(req.user.id, req.user) });
 }));
 
 api.post('/me/driver', needUser, A(async (req, res) => {
   await q('insert into driver_profiles (user_id) values ($1) on conflict do nothing', [req.user.id]);
-  res.json({ me: await meDto(req.user.id) });
+  res.json({ me: await meDto(req.user.id, req.user) });
 }));
 
 const VEH_RE = /^[A-Z0-9]{3}-\d{3}$/;
@@ -380,7 +389,7 @@ api.put('/me/driver', needUser, needDriver, A(async (req, res) => {
   const sensitive = ['lic_num', 'lic_cat', 'vtype', 'model', 'plate', 'soat_until', 'rt_ok'].some(k => k in next && S(next[k]) !== S(cur[k] instanceof Date ? cur[k].toISOString().slice(0, 10) : cur[k]));
   if (sets.length) await q('update driver_profiles set ' + sets.join(', ') + ' where user_id = $1', vals);
   if (sensitive) await reopenReview(req.user.id, 'conductor');
-  res.json({ me: await meDto(req.user.id) });
+  res.json({ me: await meDto(req.user.id, req.user) });
 }));
 
 // Si cambian datos o documentos ya revisados, el administrador los revisa otra vez.
@@ -409,11 +418,11 @@ api.post('/me/files', needUser, A(async (req, res) => {
   });
   if (def[0] === 'users') { await reopenReview(req.user.id, 'pasajero'); if (req.user.drv_status) await reopenReview(req.user.id, 'conductor'); }
   else await reopenReview(req.user.id, 'conductor');
-  res.json({ me: await meDto(req.user.id) });
+  res.json({ me: await meDto(req.user.id, req.user) });
 }));
 
 api.post('/me/submit', needUser, A(async (req, res) => {
-  const role = req.body.role === 'conductor' ? 'conductor' : 'pasajero'; const me = await meDto(req.user.id); const miss = [];
+  const role = req.body.role === 'conductor' ? 'conductor' : 'pasajero'; const me = await meDto(req.user.id, req.user); const miss = [];
   if (!me.files.selfie) miss.push('selfie'); if (!me.files.dni_photo) miss.push('foto del DNI');
   if (role === 'pasajero') {
     if (!me.emerg.name || !me.emerg.phone) miss.push('contacto de emergencia');
@@ -426,7 +435,7 @@ api.post('/me/submit', needUser, A(async (req, res) => {
   if (miss.length) fail(400, 'Te falta: ' + miss.join(', ') + '.', { missing: miss });
   if (role === 'pasajero') await q(`update users set pax_status = 'pending', pax_note = null where id = $1 and pax_status in ('none','rejected')`, [req.user.id]);
   else await q(`update driver_profiles set status = 'pending', review_note = null, submitted_at = now() where user_id = $1 and status in ('draft','rejected')`, [req.user.id]);
-  res.json({ me: await meDto(req.user.id) });
+  res.json({ me: await meDto(req.user.id, req.user) });
 }));
 
 /* ---------- archivos ---------- */
