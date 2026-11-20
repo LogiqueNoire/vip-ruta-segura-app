@@ -204,25 +204,36 @@ async function buscarUsuarioPorCorreo(email) {
   return (await leerTabla('usuarios')).find(x => texto(x.email).toLowerCase() === texto(email).toLowerCase()) || null;
 }
 
+function viajeDesdeFila(x) {
+  const time = texto(x.time || x.dep_time);
+  const match = /^(\d{1,2}):([0-5]\d)$/.exec(time);
+  return {
+    ...x,
+    id: Number(x.id || x.trip_id || x.request_id),
+    date: texto(x.date || x.trip_date),
+    time: match && Number(match[1]) < 24 ? match[1].padStart(2, '0') + ':' + match[2] : time,
+    from: texto(x.from || x.from_off),
+    price: numero(x.price),
+    seats: numero(x.seats) || 0,
+    driver_id: Number(x.driver_id),
+    taken: numero(x.taken) || 0
+  };
+}
+
+async function buscarViajePorId(id) {
+  if (!texto(id)) return null;
+  const rows = await leerTabla('viajes');
+  const row = rows.find(x => texto(x.id || x.trip_id || x.request_id) === texto(id));
+  if (!row) return null;
+  const trip = viajeDesdeFila(row);
+  return Number.isSafeInteger(trip.id) && trip.id > 0 ? trip : null;
+}
+
 async function listarViajes(date, from) {
   const remoto = await leerDesdeMake({ tabla: 'viajes' });
   const remotos = filasRespuesta(remoto, 'viajes');
   return remotos.filter(x => texto(x.id || x.trip_id || x.date || x.trip_date))
-    .map(x => {
-      const time = texto(x.time || x.dep_time);
-      const m = /^(\d{1,2}):([0-5]\d)$/.exec(time);
-      return {
-        ...x,
-        id: Number(x.id || x.trip_id || x.request_id),
-        date: texto(x.date || x.trip_date),
-        time: m && Number(m[1]) < 24 ? m[1].padStart(2, '0') + ':' + m[2] : time,
-        from: texto(x.from || x.from_off),
-        price: numero(x.price),
-        seats: numero(x.seats) || 0,
-        driver_id: Number(x.driver_id),
-        taken: numero(x.taken) || 0
-      };
-    })
+    .map(viajeDesdeFila)
     .filter(x => Number.isSafeInteger(x.id) && x.id > 0 && Number.isSafeInteger(x.driver_id) && x.driver_id > 0 &&
       x.date === texto(date) && x.from === texto(from) && ['active', 'started'].includes(texto(x.status || 'active')));
 }
@@ -313,7 +324,7 @@ async function listarIncidentesPanel() {
 }
 
 module.exports = {
-  leerHoja, leerTabla, buscarUsuarioPorId, buscarUsuarioPorCorreo, listarViajes,
+  leerHoja, leerTabla, buscarUsuarioPorId, buscarUsuarioPorCorreo, buscarViajePorId, listarViajes,
   listarReservasUsuario, listarResenasConductor, listarPagos, listarIncidentes,
   listarPagosPanel, listarIncidentesPanel, normalizarFilas
 };

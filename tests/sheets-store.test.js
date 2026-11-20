@@ -3,7 +3,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 process.env.SHEETS_READ_WEBHOOK_URL = 'https://make.example.test/read';
-const { normalizarFilas, leerTabla, listarViajes, buscarUsuarioPorId, buscarUsuarioPorCorreo } = require('../sheets-store');
+const { normalizarFilas, leerTabla, listarViajes, buscarUsuarioPorId, buscarUsuarioPorCorreo, buscarViajePorId } = require('../sheets-store');
 
 const tripColumns = [
   'id','driver_id','from_off','trip_date','dep_time','dep_at','price','seats',
@@ -132,6 +132,23 @@ test('filters Make trip rows locally and normalizes single-digit hours', async t
   assert.equal(trips.length, 1);
   assert.equal(trips[0].id, 5);
   assert.equal(trips[0].time, '08:30');
+});
+
+test('loads trip details by ID from the Make sheet', async t => {
+  const originalFetch = global.fetch;
+  t.after(() => { global.fetch = originalFetch; });
+  const row = ['3','2','tru','2099-12-30','8:30','2099-12-30T13:30:00Z','45','3','minivan','Toyota Hiace Demo','DEM-001','Blanco','active','','','2026-11-19T05:08:00Z'];
+  global.fetch = async (_url, options) => {
+    assert.deepEqual(JSON.parse(options.body), { operacion:'buscar', tabla:'viajes' });
+    return new Response(JSON.stringify([positionalRow(row)]), { status:200, headers:{'content-type':'application/json'} });
+  };
+
+  const trip = await buscarViajePorId('3');
+
+  assert.equal(trip.id, 3);
+  assert.equal(trip.date, '2099-12-30');
+  assert.equal(trip.time, '08:30');
+  assert.equal(trip.from, 'tru');
 });
 
 test('falls back to the full users sheet when Make email filtering returns no rows', async t => {

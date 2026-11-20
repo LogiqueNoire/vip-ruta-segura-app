@@ -8,7 +8,7 @@ const jwt = require('jsonwebtoken');
 const { verifyPassword } = require('./password-utils');
 const { q, tx, migrate, pool } = require('./db');
 const { sendMail, lookupDni, esc, MAIL_OK } = require('./services');
-const { buscarUsuarioPorId, buscarUsuarioPorCorreo, leerTabla, listarViajes, listarReservasUsuario, listarResenasConductor, listarPagosPanel, listarIncidentesPanel } = require('./sheets-store');
+const { buscarUsuarioPorId, buscarUsuarioPorCorreo, buscarViajePorId, leerTabla, listarViajes, listarReservasUsuario, listarResenasConductor, listarPagosPanel, listarIncidentesPanel } = require('./sheets-store');
 
 const PROD = process.env.NODE_ENV === 'production';
 const SECRET = process.env.SESSION_SECRET || (PROD ? '' : 'dev-secret-cambia-esto-en-el-env-0123456789');
@@ -458,6 +458,7 @@ async function seatState(tripId, uid) {
   return { occupied: r.rows.map(x => x.seat), mine: mine.map(x => x.seat), holding: mine.filter(x => x.status === 'hold').map(x => x.seat), holdUntil: (mine.find(x => x.status === 'hold') || {}).hold_until || null, holdId: (mine.find(x => x.status === 'hold') || {}).bid ? String(mine.find(x => x.status === 'hold').bid) : null };
 }
 const loadTrip = async (id, c) => (await (c || pool).query(`select ${TRIP_COLS} from trips t where t.id = $1`, [+id || 0])).rows[0] || null;
+const loadTripForRead = async id => (await loadTrip(id)) || await buscarViajePorId(id);
 
 api.get('/trips', needUser, A(async (req, res) => {
   const from = S(req.query.from), date = S(req.query.date);
@@ -467,7 +468,7 @@ api.get('/trips', needUser, A(async (req, res) => {
 }));
 
 api.get('/trips/:id', needUser, A(async (req, res) => {
-  const t = await loadTrip(req.params.id); if (!t) fail(404, 'Este viaje ya no está disponible.');
+  const t = await loadTripForRead(req.params.id); if (!t) fail(404, 'Este viaje ya no está disponible.');
   const drivers = await driversMap([t.driver_id]);
   const dp = (await q('select yape_phone, plin_phone from driver_profiles where user_id = $1', [t.driver_id])).rows[0] || {};
   const rv = (await listarResenasConductor(t.driver_id)).slice(0, 4);
@@ -475,7 +476,7 @@ api.get('/trips/:id', needUser, A(async (req, res) => {
     reviews: rv.map(x => ({ s: x.stars, t: x.comment, tags: x.tags, a: shortName(x.name), at: x.created_at })) });
 }));
 api.get('/trips/:id/seats', needUser, A(async (req, res) => {
-  const t = await loadTrip(req.params.id); if (!t) fail(404, 'Este viaje ya no está disponible.');
+  const t = await loadTripForRead(req.params.id); if (!t) fail(404, 'Este viaje ya no está disponible.');
   res.json({ trip: tripDto(t), seatState: await seatState(t.id, req.user.id) });
 }));
 
@@ -947,9 +948,15 @@ api.post('/trips/:id/location', needUser, needDriver, A(async (req, res) => {
   res.json({ ok: true });
 }));
 api.get('/trips/:id/live', needUser, A(async (req, res) => {
-  const t = await loadTrip(req.params.id); if (!t) fail(404, 'No encontramos ese viaje.');
-  const allowed = t.driver_id === req.user.id || req.user.is_admin ||
-    (await q(`select 1 from bookings where trip_id = $1 and user_id = $2 and status in ('por_confirmar','confirmado') limit 1`, [t.id, req.user.id])).rowCount > 0;
+  const t = await loadTripForRead(req.params.id); if (!t) fail(404, 'No encontramos ese viaje.');
+  let allowed = S(t.driver_id) === S(req.user.id) || req.user.is_admin;
+  if (!allowed && isDatabaseId(req.user.id)) {
+    allowed = (await q(`select 1 from bookings where trip_id = $1 and user_id = $2 and status in ('por_confirmar','confirmado') limit 1`, [t.id, Number(req.user.id)])).rowCount > 0;
+  }
+  if (!allowed) {
+    const bookings = await leerTabla('reservas', { trip_id: t.id, user_id: req.user.id });
+    allowed = bookings.some(b => ['por_confirmar', 'confirmado'].includes(S(b.status)));
+  }
   if (!allowed) fail(403, 'Solo los pasajeros de este viaje pueden verlo.');
   const l = await liveLocationForTrip(t.id);
   res.json({ trip: tripDto(t), drivers: await driversMap([t.driver_id]), live: l && { lat: l.lat, lon: l.lon, speed: l.speed_kmh, at: l.updated_at } });
