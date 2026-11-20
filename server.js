@@ -693,9 +693,9 @@ api.post('/trips', needUser, needApprovedDriver, A(async (req, res) => {
   await enviarAMake('viajes', {
     id: String(r.rows[0].id), request_id: String(r.rows[0].id),
     driver_id: String(req.user.id),
-    from: b.from,
-    date: b.date,
-    time: b.time,
+    from_off: b.from,
+    trip_date: b.date,
+    dep_time: b.time,
     price: v.price,
     seats: v.seats,
     vtype: dp.vtype, veh_model: dp.model, veh_plate: dp.plate, veh_color: dp.color,
@@ -721,7 +721,7 @@ api.put('/trips/:id', needUser, needDriver, A(async (req, res) => {
   await q(`update trips set trip_date = $2::date, dep_time = $3::text, dep_at = ($2::date + $3::text::time) at time zone 'America/Lima', price = $4, seats = $5 where id = $1`, [t.id, b.date, b.time, v.price, v.seats]);
   const n = await loadTrip(t.id);
   await enviarAMake('viajes', {
-    id: String(n.id), request_id: String(n.id), driver_id: String(n.driver_id), from: n.from, date: n.date, time: n.time,
+    id: String(n.id), request_id: String(n.id), driver_id: String(n.driver_id), from_off: n.from, trip_date: n.date, dep_time: n.time,
     price: n.price, seats: n.seats, vtype: n.vtype, veh_model: n.veh_model, veh_plate: n.veh_plate, veh_color: n.veh_color,
     dep_at: n.dep_at, status: n.status, started_at: n.started_at || '', finished_at: n.finished_at || '', created_at: n.created_at || new Date().toISOString()
   });
@@ -745,7 +745,7 @@ async function cancelTrip(tripId, reason) {
   });
   if (info) await enviarAMake('viajes', {
     id: String(info.t.id), request_id: String(info.t.id), driver_id: String(info.t.driver_id),
-    from: info.t.from, date: info.t.date, time: info.t.time, price: info.t.price, seats: info.t.seats,
+    from_off: info.t.from, trip_date: info.t.date, dep_time: info.t.time, price: info.t.price, seats: info.t.seats,
     vtype: info.t.vtype, veh_model: info.t.veh_model, veh_plate: info.t.veh_plate, veh_color: info.t.veh_color,
     dep_at: info.t.dep_at, status: 'cancelled', started_at: info.t.started_at || '', finished_at: info.t.finished_at || '',
     created_at: info.t.created_at || new Date().toISOString()
@@ -906,8 +906,8 @@ api.post('/trips/:id/start', needUser, needApprovedDriver, A(async (req, res) =>
   });
   const started = await loadTrip(req.params.id);
   if (started) await enviarAMake('viajes', {
-    id: String(started.id), request_id: String(started.id), driver_id: String(started.driver_id), from: started.from,
-    date: started.date, time: started.time, price: started.price, seats: started.seats, vtype: started.vtype,
+    id: String(started.id), request_id: String(started.id), driver_id: String(started.driver_id), from_off: started.from,
+    trip_date: started.date, dep_time: started.time, price: started.price, seats: started.seats, vtype: started.vtype,
     veh_model: started.veh_model, veh_plate: started.veh_plate, veh_color: started.veh_color, dep_at: started.dep_at,
     status: 'started', started_at: new Date().toISOString(), finished_at: '', created_at: new Date().toISOString()
   });
@@ -920,7 +920,7 @@ api.post('/trips/:id/finish', needUser, needApprovedDriver, A(async (req, res) =
   const r = await q(`update trips set status = 'finished', finished_at = now() where id = $1 and status = 'started' returning status`, [t.id]);
   if (!r.rowCount) fail(409, 'El estado del viaje cambió. Actualiza la pantalla e inténtalo otra vez.');
   await enviarAMake('viajes', {
-    id: String(t.id), request_id: String(t.id), driver_id: String(t.driver_id), from: t.from, date: t.date, time: t.time,
+    id: String(t.id), request_id: String(t.id), driver_id: String(t.driver_id), from_off: t.from, trip_date: t.date, dep_time: t.time,
     price: t.price, seats: t.seats, vtype: t.vtype, veh_model: t.veh_model, veh_plate: t.veh_plate, veh_color: t.veh_color,
     dep_at: t.dep_at, status: 'finished', started_at: t.started_at || '', finished_at: new Date().toISOString(), created_at: t.created_at || new Date().toISOString()
   });
