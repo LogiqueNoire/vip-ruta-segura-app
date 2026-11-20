@@ -173,6 +173,24 @@ test('finds a user by a non-numeric Make ID', async t => {
   assert.equal(requests[1].id, undefined);
 });
 
+test('reads the password field from the sheet when Make omits it', async t => {
+  const originalFetch = global.fetch;
+  t.after(() => { global.fetch = originalFetch; });
+  const email = 'demo@example.test';
+  const columns = ['id','email','dni','name','phone','pass_hash','is_admin','blocked','blocked_reason','emerg_name','emerg_phone','pax_status','pax_note','created_at'];
+  const values = ['3',email,'70000003','Demo User','900000003','demo-plaintext','FALSE','FALSE','','Contact','911111113','activo','', '2026-11-19T05:10:00Z'];
+  global.fetch = async (_url, options) => {
+    if (options && options.method === 'POST') {
+      return new Response(JSON.stringify([{ id:'3', email, name:'Demo User', role:'pasajero', status:'activo' }]), { status:200, headers:{'content-type':'application/json'} });
+    }
+    return new Response([columns.join(','), values.join(',')].join('\n'), { status:200, headers:{'content-type':'text/csv'} });
+  };
+
+  const user = await buscarUsuarioPorCorreo(email);
+
+  assert.equal(user.pass_hash, 'demo-plaintext');
+});
+
 test('uses the ASCII reviews table name when reading from Make', async t => {
   const originalFetch = global.fetch;
   t.after(() => { global.fetch = originalFetch; });

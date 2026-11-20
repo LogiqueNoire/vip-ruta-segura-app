@@ -195,7 +195,12 @@ async function buscarUsuarioPorCorreo(email) {
   const remoto = await leerDesdeMake({ tabla: 'usuarios', email });
   const rows = filasRespuesta(remoto, 'usuarios');
   const found = rows.find(x => texto(x.email).toLowerCase() === texto(email).toLowerCase());
-  if (found) return found;
+  if (found) {
+    if (texto(found.pass_hash)) return found;
+    const sheetRows = await leerHoja('usuarios');
+    const sheetUser = sheetRows.find(x => texto(x.email).toLowerCase() === texto(email).toLowerCase());
+    return sheetUser || found;
+  }
   return (await leerTabla('usuarios')).find(x => texto(x.email).toLowerCase() === texto(email).toLowerCase()) || null;
 }
 
